@@ -1,0 +1,55 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/doctors/{{doctorId}}'
+order: 11000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Dr. Tanvir Ahmed (Cardiology)",
+      "bmdcRegNo": "A-43921",
+      "phone": "01711234567",
+      "email": "tanvir.ahmed@squarehospital.com",
+      "chamberName": "Square Hospital Chambers",
+      "address": "18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka",
+      "consultationTypes": ["in_person"],
+      "chamberNo": "Room 405",
+      "slotDuration": 20,
+      "availableDays": ["sat", "sun", "mon", "tue", "wed"],
+      "availableFrom": "17:00",
+      "availableTo": "21:00",
+      "fees": {
+        "firstVisit": 1500,
+        "reportView": 400,
+        "secondVisit": 800,
+        "afterOneMonth": 1200
+      },
+      "visitDate": "{{doctorVisitDate}}",
+      "status": "setup",
+      "notes": "Moved to Room 405."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('saves the edit', () => {
+        pm.expect(doctor.id).to.eql(pm.collectionVariables.get('doctorId'));
+        pm.expect(doctor.chamberNo).to.eql('Room 405');
+        pm.expect(doctor.status).to.eql('setup');
+        pm.expect(doctor.bmdcRegNo).to.eql('A-43921');
+      });
+      pm.test('adds "Form updated" to the history because the status changed', () => {
+        pm.expect(doctor.history).to.be.an('array').with.lengthOf(2);
+        const last = doctor.history[doctor.history.length - 1];
+        pm.expect(last.note).to.eql('Form updated');
+        pm.expect(last.status).to.eql('setup');
+        pm.expect(last.by && last.by.name).to.eql(pm.collectionVariables.get('fieldUserName'));
+      });
+      pm.test('keeps who submitted the form', () => {
+        pm.expect(doctor.createdBy && doctor.createdBy.id).to.eql(pm.collectionVariables.get('fieldUserId'));
+      });

@@ -1,0 +1,15 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors/{{doctorId}}'
+order: 6000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      pm.test('is the submitted doctor, with its history', () => {
+        const doctor = pm.response.json().data || {};
+        pm.expect(doctor.id).to.eql(pm.collectionVariables.get('doctorId'));
+        pm.expect(doctor.name).to.eql('Dr. Tanvir Ahmed (Cardiology)');
+        pm.expect(doctor.history).to.be.an('array').with.lengthOf(1);
+      });

@@ -1,0 +1,87 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/doctors'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Dr. Tanvir Ahmed (Cardiology)",
+      "bmdcRegNo": "A-43921",
+      "phone": "+880 1711-234567",
+      "email": "tanvir.ahmed@squarehospital.com",
+      "chamberName": "Square Hospital Chambers",
+      "address": "18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka",
+      "consultationTypes": ["in_person"],
+      "chamberNo": "Room 402",
+      "slotDuration": 20,
+      "availableDays": ["sat", "sun", "mon", "tue", "wed"],
+      "availableFrom": "17:00",
+      "availableTo": "21:00",
+      "fees": {
+        "firstVisit": 1500,
+        "reportView": 400,
+        "secondVisit": 800,
+        "afterOneMonth": 1200
+      },
+      "visitDate": "{{doctorVisitDate}}",
+      "notes": "Prefers visits after 5 PM, before the chamber gets busy."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Tomorrow at 11:00 UTC (5:00 PM in Dhaka).
+      const visit = new Date();
+      visit.setUTCDate(visit.getUTCDate() + 1);
+      visit.setUTCHours(11, 0, 0, 0);
+      pm.collectionVariables.set('doctorVisitDate', visit.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const doctor = pm.response.json().data || {};
+      const fieldUser = pm.collectionVariables.get('fieldUserName');
+      pm.test('is a doctor with an id', () => {
+        pm.expect(doctor.id).to.match(/^[a-f0-9]{24}$/);
+        pm.expect(doctor.type).to.eql('doctor');
+      });
+      pm.test('stores the phone in E.164', () => pm.expect(doctor.phone).to.eql('+8801711234567'));
+      pm.test('keeps every paper-form field', () => {
+        pm.expect(doctor.name).to.eql('Dr. Tanvir Ahmed (Cardiology)');
+        pm.expect(doctor.bmdcRegNo).to.eql('A-43921');
+        pm.expect(doctor.email).to.eql('tanvir.ahmed@squarehospital.com');
+        pm.expect(doctor.chamberName).to.eql('Square Hospital Chambers');
+        pm.expect(doctor.address).to.eql('18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka');
+        pm.expect(doctor.consultationTypes).to.eql(['in_person']);
+        pm.expect(doctor.chamberNo).to.eql('Room 402');
+        pm.expect(doctor.slotDuration).to.eql(20);
+        pm.expect(doctor.availableDays).to.eql(['sat', 'sun', 'mon', 'tue', 'wed']);
+        pm.expect(doctor.availableFrom).to.eql('17:00');
+        pm.expect(doctor.availableTo).to.eql('21:00');
+        pm.expect(doctor.fees).to.eql({ firstVisit: 1500, reportView: 400, secondVisit: 800, afterOneMonth: 1200 });
+      });
+      pm.test('keeps the visit date', () => {
+        pm.expect(new Date(doctor.visitDate).toISOString()).to.eql(pm.collectionVariables.get('doctorVisitDate'));
+      });
+      pm.test('starts as ongoing, with no photo', () => {
+        pm.expect(doctor.status).to.eql('ongoing');
+        pm.expect(doctor.photoUrl).to.eql(null);
+      });
+      pm.test('history starts with "Form submitted" by the marketer', () => {
+        pm.expect(doctor.history).to.be.an('array').with.lengthOf(1);
+        const [first] = doctor.history;
+        pm.expect(first.note).to.eql('Form submitted');
+        pm.expect(first.status).to.eql('ongoing');
+        pm.expect(first.by && first.by.name).to.eql(fieldUser);
+      });
+      pm.test('records who submitted the form, with their phone number from their account', () => {
+        pm.expect(doctor.createdBy && doctor.createdBy.name).to.eql(fieldUser);
+        pm.expect(doctor.createdBy && doctor.createdBy.id).to.eql(pm.collectionVariables.get('fieldUserId'));
+        pm.expect(doctor.createdBy && doctor.createdBy.phone).to.eql('+8801912345678');
+      });
+      pm.test('starts with no implementation steps', () => pm.expect(doctor.implementationSteps).to.eql([]));
+      if (doctor.id) pm.collectionVariables.set('doctorId', doctor.id);

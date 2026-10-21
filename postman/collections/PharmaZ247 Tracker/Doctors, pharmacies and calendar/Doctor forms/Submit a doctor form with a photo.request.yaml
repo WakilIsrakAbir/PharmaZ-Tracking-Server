@@ -1,0 +1,56 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/doctors'
+order: 3000
+body:
+  type: formdata
+  content:
+    - key: data
+      type: text
+      value: '{{doctor2Data}}'
+      description: The form fields as a JSON string.
+    - key: photo
+      type: file
+      src: 'postman/fixtures/photo.png'
+      contentType: image/png
+      description: A small PNG. The path is relative to the repo root.
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // A second doctor, visited in three days at 08:00 UTC (2:00 PM in Dhaka).
+      const visit = new Date();
+      visit.setUTCDate(visit.getUTCDate() + 3);
+      visit.setUTCHours(8, 0, 0, 0);
+      pm.collectionVariables.set('doctor2Data', JSON.stringify({
+        name: 'Dr. Nusrat Jahan (Gynaecology)',
+        phone: '01812-345678',
+        address: 'House 5, Road 2, Dhanmondi, Dhaka',
+        chamberName: 'Popular Diagnostic Centre',
+        consultationTypes: ['in_person', 'teleconsultation'],
+        visitDate: visit.toISOString(),
+      }));
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const doctor = pm.response.json().data || {};
+      pm.test('reads the fields from the data part', () => {
+        pm.expect(doctor.name).to.eql('Dr. Nusrat Jahan (Gynaecology)');
+        pm.expect(doctor.phone).to.eql('+8801812345678');
+        pm.expect(doctor.consultationTypes).to.have.members(['in_person', 'teleconsultation']);
+      });
+      pm.test('fills the fields that were left out with empty values', () => {
+        pm.expect(doctor.bmdcRegNo).to.eql('');
+        pm.expect(doctor.email).to.eql('');
+        pm.expect(doctor.availableDays).to.eql([]);
+        pm.expect(doctor.slotDuration).to.eql(null);
+        pm.expect(doctor.fees).to.eql({ firstVisit: null, reportView: null, secondVisit: null, afterOneMonth: null });
+      });
+      pm.test('saves the photo', () => {
+        pm.expect(doctor.photoUrl).to.be.a('string').and.match(/^\/api\/v1\/uploads\/[^/]+$/);
+      });
+      if (doctor.id) {
+        pm.collectionVariables.set('doctor2Id', doctor.id);
+        pm.collectionVariables.set('photoUrl', doctor.photoUrl);
+      }

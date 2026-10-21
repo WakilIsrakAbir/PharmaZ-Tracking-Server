@@ -1,0 +1,23 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 13000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "bogus"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for a status that does not exist', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR points at the status', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('status');
+      });

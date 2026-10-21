@@ -1,0 +1,26 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTooFar}}'
+order: 3000
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTooFar}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // 90 days is more than the 62-day limit.
+      const tooFar = new Date(pm.collectionVariables.get('calendarFrom'));
+      tooFar.setUTCDate(tooFar.getUTCDate() + 90);
+      pm.collectionVariables.set('calendarTooFar', tooFar.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 when the range is longer than 62 days', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR with a message for people', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.be.an('object').that.is.not.empty;
+      });

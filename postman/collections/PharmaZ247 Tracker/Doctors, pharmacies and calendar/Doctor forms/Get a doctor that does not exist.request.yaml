@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors/ffffffffffffffffffffffff'
+order: 7000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('404 for an id that does not exist', () => pm.response.to.have.status(404));
+      pm.test('NOT_FOUND with a readable message', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('NOT_FOUND');
+        pm.expect(error.message).to.be.a('string').and.not.empty;
+      });

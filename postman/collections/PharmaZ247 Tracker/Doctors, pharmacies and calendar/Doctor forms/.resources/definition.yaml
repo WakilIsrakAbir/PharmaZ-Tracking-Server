@@ -1,0 +1,6 @@
+$kind: collection
+description: |-
+  Signed in as the field marketer. Submits the sample paper form (Dr. Tanvir Ahmed) as JSON and a
+  second doctor with a photo, then reads, searches, edits and moves the first one through the
+  statuses, ending with an implementation done in two steps.
+order: 2000

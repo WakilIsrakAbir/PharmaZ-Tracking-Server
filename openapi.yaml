@@ -1,0 +1,2276 @@
+openapi: 3.1.0
+info:
+  title: PharmaZ247 Tracker API
+  version: 3.0.0
+  summary: Internal API behind the PharmaZ247 Tracker web app.
+  description: |
+    The PharmaZ247 Tracker lets the marketing team fill in onboarding forms for the doctors and
+    pharmacies they visit, see every visit on a calendar, and follow each one from the first visit to
+    go-live. This file is the contract: the Express server in `server/` and the Postman collection in
+    `postman/` are both checked against it.
+
+    ## Conventions
+
+    **Base path.** Every route lives under `/api/v1`. In development the API listens on port 4000.
+    The web app on port 3000 forwards `/api/*` to it, so the browser only ever talks to one address.
+
+    **Signing in.** `POST /auth/login` sets an httpOnly cookie named `pz_session` (a JWT, valid for
+    7 days). Browsers and Postman send it back automatically. Every route needs it except
+    `GET /health`, `POST /auth/login` and `POST /auth/logout`. There is no sign-up route: only an
+    admin can create accounts (`POST /users`).
+
+    **Roles.** `admin` can do everything. `marketing` can do everything except manage team accounts
+    and delete doctors or pharmacies.
+
+    **Who sees what.** A marketing user only sees the records they submitted (`createdBy`): in the
+    lists, the calendar, single records, status updates and photos. Anyone else's record answers
+    `404`, exactly as if it didn't exist. Admins see every record.
+
+    **Records.** A record is one filled-in onboarding form: a doctor (`/doctors`) or a pharmacy
+    (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
+    the calendar, a `status`, `createdBy` (the name and phone number of the person who submitted it),
+    `implementationSteps` (a checklist for an implementation that takes several visits), and a
+    `history` of every status and visit-date change.
+
+    **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears only
+    on the doctor and pharmacy lists. `GET /health` and photo files are the exceptions.
+
+    **Error responses** always have the same shape. `message` is written for people, so the web app
+    can show it as it is:
+
+    ```json
+    { "error": { "code": "VALIDATION_ERROR",
+                 "message": "Please check the highlighted fields.",
+                 "fields": { "phone": "Phone number should look like +880 1711-234567." } } }
+    ```
+
+    `fields` is only present for field-level problems. Its keys are dot paths into the request body
+    or query string, such as `phone` or `fees.firstVisit`.
+
+    | Status | `code` | When |
+    |---|---|---|
+    | 400 | `VALIDATION_ERROR` | The body, query or path did not pass validation (see `fields`) |
+    | 400 | `INVALID_JSON` | The request body, or the `data` part of a form upload, is not valid JSON |
+    | 400 | `BAD_REQUEST` | The request can't be processed as sent |
+    | 400 | `SELF_CHANGE` | An admin tried to deactivate, demote or reset their own account |
+    | 401 | `UNAUTHORIZED` | No session, or the session expired or was ended |
+    | 401 | `INVALID_CREDENTIALS` | The email and password don't match |
+    | 403 | `FORBIDDEN` | Signed in, but this role isn't allowed to do this |
+    | 403 | `ACCOUNT_INACTIVE` | The account was deactivated by an admin |
+    | 404 | `NOT_FOUND` | Nothing exists at this id |
+    | 409 | `EMAIL_TAKEN` | Another account already uses this email |
+    | 409 | `DUPLICATE` | A value that must be unique was saved twice at the same moment |
+    | 429 | `TOO_MANY_REQUESTS` | Too many failed sign-in attempts |
+    | 500 | `INTERNAL_ERROR` | Something broke on the server |
+
+    **Identifiers.** Database ids are 24-character hex strings exposed as `id`. Records are addressed
+    by their id, for example `/doctors/6717b2e4c2b1e45d8a0f2b10`.
+
+    **Dates** are ISO 8601 in UTC, for example `2026-10-21T11:00:00.000Z`. The web app shows them in
+    Asia/Dhaka time (UTC+6), so that example is 5:00 PM in Dhaka. The times of day in
+    `availableFrom` and `availableTo` (`17:00`) are already Asia/Dhaka local time.
+
+    **Phone numbers** are Bangladesh mobile numbers. Input is flexible (`01711234567`,
+    `8801711234567` and `+880 1711-234567` are all accepted). The API stores and returns E.164, for
+    example `+8801711234567`.
+
+    **Passwords** can be anything that isn't empty, up to 72 characters (bcrypt only reads the first
+    72). There are no rules about length, letters or numbers.
+
+    **Money** is whole Bangladeshi taka (BDT, ৳), sent as integers.
+
+    **Photos** are sent together with the form as `multipart/form-data`: the form fields go in a text
+    part called `data` (the same JSON as the JSON body) and the image in a file part called `photo`
+    (JPG, PNG or WebP, at most 2 MB). A record's `photoUrl` points to `/api/v1/uploads/...`, which
+    also needs a signed-in session, and only works for someone who can see that record.
+  contact:
+    name: PharmaZ247 Tracker team
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Development — the API directly
+  - url: http://localhost:3000/api/v1
+    description: Development — through the web app's /api rewrite (uses the same cookie as the browser)
+security:
+  - sessionCookie: []
+tags:
+  - name: Health
+    description: Is the API up?
+  - name: Auth
+    description: Sign in, sign out, the current user, and changing your own password.
+  - name: Users
+    description: Team accounts. Admin only.
+  - name: Doctors
+    description: Doctor onboarding forms, filled in by the marketing team. The fields follow the paper Doctor Onboarding Form (fields 1–15).
+  - name: Pharmacies
+    description: Pharmacy onboarding forms. The field list is a draft until the pharmacy paper form is confirmed.
+  - name: Calendar
+    description: Every doctor and pharmacy visit in a date range, for the calendar on the dashboard.
+  - name: Uploads
+    description: Photos sent with the forms.
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Check that the API is running
+      description: Used by hosting health checks and by the local setup check. Needs no session and does not use the `data` envelope.
+      security: []
+      responses:
+        '200':
+          description: The API is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+              example:
+                ok: true
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Sign in with email and password
+      description: |
+        Checks the email and password, sets the `pz_session` cookie and returns the signed-in user.
+        The cookie is httpOnly, `SameSite=Lax`, `Secure` in production and valid for 7 days.
+
+        After 5 failed attempts for the same email from the same IP within 15 minutes, more attempts
+        get `429` until the window passes. Successful sign-ins don't count towards the limit.
+
+        If `mustChangePassword` is `true` in the response, the web app asks the person to choose a
+        new password before anything else.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: rafi.hasan@example.com
+              password: Mango-4821-River
+      responses:
+        '200':
+          description: Signed in. The session cookie is set.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              examples:
+                firstSignIn:
+                  $ref: '#/components/examples/MarketingUserMustChangePassword'
+                admin:
+                  $ref: '#/components/examples/AdminUser'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: The email and password don't match. The same answer is given whether or not the email exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_CREDENTIALS
+                  message: "That email and password don't match."
+        '403':
+          description: The email and password are right, but an admin has deactivated the account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ACCOUNT_INACTIVE
+                  message: Your account has been deactivated. Ask your admin for help.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Sign out
+      description: Clears the `pz_session` cookie. Works with or without a valid session, so it never fails because a session has already expired.
+      security: []
+      responses:
+        '204':
+          description: Signed out. The session cookie is cleared.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/ClearSessionCookie'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Get the signed-in user
+      description: Returns the person the session belongs to. The web app calls this to decide what to show, for example whether the Team page is visible.
+      responses:
+        '200':
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              examples:
+                admin:
+                  $ref: '#/components/examples/AdminUser'
+                marketing:
+                  $ref: '#/components/examples/MarketingUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password:
+    patch:
+      tags: [Auth]
+      operationId: changePassword
+      summary: Change your own password
+      description: |
+        Used both for the first sign-in with a temporary password and for a normal password change.
+        On success the response sets a fresh session cookie, `mustChangePassword` becomes `false`,
+        and every other session of this user is ended.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              currentPassword: Mango-4821-River
+              newPassword: Field-Team-2026
+      responses:
+        '200':
+          description: Password changed. A new session cookie is set.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              examples:
+                changed:
+                  $ref: '#/components/examples/MarketingUser'
+        '400':
+          description: The current password is wrong, or the new password is empty or the same as the current one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrongCurrentPassword:
+                  summary: Current password is wrong
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        currentPassword: "That isn't your current password."
+                emptyNewPassword:
+                  summary: No new password
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        newPassword: Please enter a password.
+                sameAsCurrent:
+                  summary: New password is the same as the current one
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        newPassword: Choose a password that is different from your current one.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: List team accounts
+      description: Admin only. Every account, active ones first, then sorted by name. The team is small, so this list is not paginated or filtered; the web app searches it in the browser.
+      responses:
+        '200':
+          description: Everyone on the team.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+              examples:
+                team:
+                  $ref: '#/components/examples/UserList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Add a teammate
+      description: |
+        Admin only, and the only way an account can be created. `name`, `email` and `phone` are
+        required: the name and phone number are shown on every form the teammate submits.
+
+        The response includes a temporary password, **shown this one time only**. The admin shares
+        it with the new teammate, who must choose their own password at first sign-in
+        (`mustChangePassword` is `true`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              name: Rafi Hasan
+              email: rafi.hasan@example.com
+              phone: '01711-234567'
+              role: marketing
+      responses:
+        '201':
+          description: The account was created. Share the temporary password with the teammate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedUserResponse'
+              examples:
+                created:
+                  $ref: '#/components/examples/CreatedUser'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Another account already uses this email.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: EMAIL_TAKEN
+                  message: Someone on the team already uses this email.
+                  fields:
+                    email: This email is already in use.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    patch:
+      tags: [Users]
+      operationId: updateUser
+      summary: Edit a teammate, change their role, or deactivate them
+      description: |
+        Admin only. Send only the fields to change. The phone number can be changed but not removed,
+        because it is shown on the forms the teammate submits.
+
+        Deactivating (`isActive: false`) signs the person out everywhere straight away. Their history
+        stays, and they can be reactivated later.
+
+        Guardrail: an admin can't deactivate their own account or change their own role
+        (`SELF_CHANGE`). Because the acting admin always stays active, the team always keeps at least
+        one active admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            examples:
+              rename:
+                summary: Fix a name
+                value:
+                  name: Rafi Hasan Chowdhury
+              makeAdmin:
+                summary: Promote to admin
+                value:
+                  role: admin
+              deactivate:
+                summary: Deactivate
+                value:
+                  isActive: false
+      responses:
+        '200':
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              examples:
+                updated:
+                  $ref: '#/components/examples/MarketingUser'
+        '400':
+          description: The body didn't pass validation, or the guardrail stopped the change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyBody:
+                  summary: Nothing to change
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        body: Send at least one field to change.
+                selfChange:
+                  summary: Admin changing their own role or status
+                  value:
+                    error:
+                      code: SELF_CHANGE
+                      message: "You can't deactivate your own account or change your own role."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{id}/reset-password:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Users]
+      operationId: resetUserPassword
+      summary: Give a teammate a new temporary password
+      description: |
+        Admin only. Replaces the person's password with a new temporary one (shown this one time
+        only), ends all their sessions, and sets `mustChangePassword` to `true`. Admins change their
+        own password with `PATCH /auth/password` instead (`SELF_CHANGE`).
+      responses:
+        '200':
+          description: The new temporary password. Share it with the teammate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedUserResponse'
+              examples:
+                reset:
+                  $ref: '#/components/examples/CreatedUser'
+        '400':
+          description: Admins can't reset their own password here.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: SELF_CHANGE
+                  message: To change your own password, use Account → Change password.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors:
+    get:
+      tags: [Doctors]
+      operationId: listDoctors
+      summary: List doctor forms
+      description: |
+        Newest `visitDate` first. The team is small, so the list is not paginated. Marketing users
+        get only the doctors they submitted; admins get every doctor.
+
+        `meta.counts` gives the number of doctors in each status, for the tabs above the list. It
+        follows `search` (and who is asking) but ignores `status`, so every tab keeps its number
+        while one is open.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: The matching doctors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorListResponse'
+              examples:
+                list:
+                  $ref: '#/components/examples/DoctorList'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Doctors]
+      operationId: createDoctor
+      summary: Submit a doctor onboarding form
+      description: |
+        Any signed-in user can submit a form. The person who sends it becomes `createdBy` (their
+        name and phone number come from their account), and `history` starts with one entry,
+        "Form submitted". `status` starts as `ongoing` unless the form says otherwise.
+
+        Send JSON, or `multipart/form-data` when there is a photo (see **Photos** above).
+      requestBody:
+        $ref: '#/components/requestBodies/DoctorForm'
+      responses:
+        '201':
+          description: The form was saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorResponse'
+              examples:
+                submitted:
+                  $ref: '#/components/examples/DoctorTanvir'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    get:
+      tags: [Doctors]
+      operationId: getDoctor
+      summary: Get one doctor form
+      description: A marketing user gets `404` for a doctor someone else submitted.
+      responses:
+        '200':
+          description: The doctor, with the full history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorResponse'
+              examples:
+                doctor:
+                  $ref: '#/components/examples/DoctorTanvir'
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Doctors]
+      operationId: updateDoctor
+      summary: Save an edited doctor form
+      description: |
+        Send the whole form again, with the same rules as `POST /doctors`. When `status` or
+        `visitDate` changes, a "Form updated" entry is added to `history`. A new `photo` replaces the
+        current one; without one, the current photo stays. `createdBy` and `implementationSteps`
+        never change here.
+      requestBody:
+        $ref: '#/components/requestBodies/DoctorForm'
+      responses:
+        '200':
+          description: The saved form.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorResponse'
+              examples:
+                saved:
+                  $ref: '#/components/examples/DoctorTanvir'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Doctors]
+      operationId: deleteDoctor
+      summary: Delete a doctor form
+      description: Admin only. A deleted form can't be brought back.
+      responses:
+        '204':
+          description: Deleted.
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    patch:
+      tags: [Doctors]
+      operationId: changeDoctorStatus
+      summary: Update the status (and the implementation steps)
+      description: |
+        The "Save update" button in the details panel. Sets `status` (and `visitDate`, if given)
+        and adds an entry to the end of `history` with the note and the person who made the change.
+        Without `visitDate`, the current one stays.
+
+        **Implementation steps.** Send `implementationSteps` to replace the whole checklist; leave it
+        out to keep the current one. Send the `id` of each step that already exists. A step that
+        becomes `done` gets today's date in `doneAt`; a step that was already done keeps its date.
+        When the new status is `implementation` and there are steps, the history entry records how
+        many were done (`steps`).
+      requestBody:
+        $ref: '#/components/requestBodies/StatusChange'
+      responses:
+        '200':
+          description: The doctor, with the new history entry last.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorResponse'
+              examples:
+                moved:
+                  $ref: '#/components/examples/DoctorTanvirLive'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies:
+    get:
+      tags: [Pharmacies]
+      operationId: listPharmacies
+      summary: List pharmacy forms
+      description: The same rules as `GET /doctors`.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: The matching pharmacies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PharmacyListResponse'
+              examples:
+                list:
+                  $ref: '#/components/examples/PharmacyList'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Pharmacies]
+      operationId: createPharmacy
+      summary: Submit a pharmacy onboarding form
+      description: The same rules as `POST /doctors`, with the pharmacy fields.
+      requestBody:
+        $ref: '#/components/requestBodies/PharmacyForm'
+      responses:
+        '201':
+          description: The form was saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PharmacyResponse'
+              examples:
+                submitted:
+                  $ref: '#/components/examples/PharmacyRahman'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    get:
+      tags: [Pharmacies]
+      operationId: getPharmacy
+      summary: Get one pharmacy form
+      description: The same rules as `GET /doctors/{id}`.
+      responses:
+        '200':
+          description: The pharmacy, with the full history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PharmacyResponse'
+              examples:
+                pharmacy:
+                  $ref: '#/components/examples/PharmacyRahman'
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Pharmacies]
+      operationId: updatePharmacy
+      summary: Save an edited pharmacy form
+      description: The same rules as `PUT /doctors/{id}`.
+      requestBody:
+        $ref: '#/components/requestBodies/PharmacyForm'
+      responses:
+        '200':
+          description: The saved form.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PharmacyResponse'
+              examples:
+                saved:
+                  $ref: '#/components/examples/PharmacyRahman'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Pharmacies]
+      operationId: deletePharmacy
+      summary: Delete a pharmacy form
+      description: Admin only. A deleted form can't be brought back.
+      responses:
+        '204':
+          description: Deleted.
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    patch:
+      tags: [Pharmacies]
+      operationId: changePharmacyStatus
+      summary: Update the status (and the implementation steps)
+      description: The same rules as `PATCH /doctors/{id}/status`.
+      requestBody:
+        $ref: '#/components/requestBodies/StatusChange'
+      responses:
+        '200':
+          description: The pharmacy, with the new history entry last.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PharmacyResponse'
+              examples:
+                pharmacy:
+                  $ref: '#/components/examples/PharmacyRahman'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /calendar:
+    get:
+      tags: [Calendar]
+      operationId: getCalendar
+      summary: List the visits in a date range
+      description: |
+        Doctors and pharmacies whose `visitDate` is on or after `from` and before `to`, soonest
+        first. The web app asks for the weeks it is showing, for example a whole month grid.
+        Marketing users get only their own visits; admins get the whole team's, with `createdBy`
+        saying whose visit it is.
+
+        `place` is the line the calendar shows under the name: the doctor's chamber name (or the
+        address when there is none), or the pharmacy's name.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Start of the range (included).
+          schema:
+            $ref: '#/components/schemas/DateTime'
+          example: '2026-09-26T18:00:00.000Z'
+        - name: to
+          in: query
+          required: true
+          description: End of the range (not included). Must be after `from`, and at most 62 days later.
+          schema:
+            $ref: '#/components/schemas/DateTime'
+          example: '2026-11-06T18:00:00.000Z'
+      responses:
+        '200':
+          description: The visits in the range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarResponse'
+              examples:
+                tomorrow:
+                  $ref: '#/components/examples/CalendarTomorrow'
+        '400':
+          description: '`from` or `to` is missing or not a date, `to` is not after `from`, or the range is longer than 62 days.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingTo:
+                  summary: No end date
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        to: Please give an end date.
+                tooLong:
+                  summary: More than 62 days
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Please check the highlighted fields.
+                      fields:
+                        to: Ask for 62 days or less at a time.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /uploads/{file}:
+    get:
+      tags: [Uploads]
+      operationId: getUpload
+      summary: Load a photo
+      description: The image a record's `photoUrl` points to. Needs a signed-in session, like everything else, and answers `404` to a marketing user who can't see that record.
+      parameters:
+        - name: file
+          in: path
+          required: true
+          description: The last part of `photoUrl`.
+          schema:
+            type: string
+          example: 6717b2e4c2b1e45d8a0f2b10.jpg
+      responses:
+        '200':
+          description: The image.
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: pz_session
+      description: |
+        The session cookie set by `POST /auth/login`. It is httpOnly (JavaScript can't read it),
+        `SameSite=Lax`, `Secure` in production, and valid for 7 days. Changing or resetting a password,
+        or deactivating the account, ends existing sessions.
+
+  headers:
+    SetSessionCookie:
+      description: Sets or replaces the `pz_session` cookie.
+      schema:
+        type: string
+      example: 'pz_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NzE3YTNmOWMyYjFlNDVkOGEwZjFhMDIifQ.sig; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax'
+    ClearSessionCookie:
+      description: Clears the `pz_session` cookie.
+      schema:
+        type: string
+      example: 'pz_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax'
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: The user's id.
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+      example: '6717a3f9c2b1e45d8a0f1a02'
+    RecordId:
+      name: id
+      in: path
+      required: true
+      description: The record's id. A malformed id gets `400`; an id that doesn't exist gets `404`.
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+      example: '6717b2e4c2b1e45d8a0f2b10'
+    Search:
+      name: search
+      in: query
+      description: Matches the name, the phone number's digits and a few other text fields (such as the BMDC no. or the area). Case doesn't matter.
+      schema:
+        type: string
+        maxLength: 100
+      example: Tanvir
+    StatusFilter:
+      name: status
+      in: query
+      description: Only records in this status.
+      schema:
+        $ref: '#/components/schemas/OnboardingStatus'
+
+  requestBodies:
+    DoctorForm:
+      required: true
+      description: The doctor form. Send JSON, or `multipart/form-data` with a `data` part (the same JSON as a string) and an optional `photo` file.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DoctorForm'
+          examples:
+            sampleForm:
+              $ref: '#/components/examples/DoctorTanvirForm'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/FormUpload'
+          encoding:
+            data:
+              contentType: text/plain
+            photo:
+              contentType: image/*
+    PharmacyForm:
+      required: true
+      description: The pharmacy form. Send JSON, or `multipart/form-data` with a `data` part (the same JSON as a string) and an optional `photo` file.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PharmacyForm'
+          examples:
+            sampleForm:
+              $ref: '#/components/examples/PharmacyRahmanForm'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/FormUpload'
+          encoding:
+            data:
+              contentType: text/plain
+            photo:
+              contentType: image/*
+    StatusChange:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StatusChangeRequest'
+          examples:
+            statusOnly:
+              summary: A new status and a note
+              value:
+                status: setup
+                note: Profile and slots set up
+            withSteps:
+              summary: Implementation, with the first of two steps done
+              value:
+                status: implementation
+                visitDate: '2026-10-28T11:00:00.000Z'
+                note: Training done
+                implementationSteps:
+                  - id: '6717d0c4c2b1e45d8a0f4e01'
+                    title: Profile live in the app
+                    done: true
+                  - title: Train the chamber assistant
+                    done: false
+
+  responses:
+    ValidationError:
+      description: The request didn't pass validation. `fields` says what to fix, in words the web app can show.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            fields:
+              summary: Problems with specific fields
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Please check the highlighted fields.
+                  fields:
+                    phone: Phone number should look like +880 1711-234567.
+                    status: Status must be ongoing, setup or implementation.
+            invalidJson:
+              summary: The body is not valid JSON
+              value:
+                error:
+                  code: INVALID_JSON
+                  message: "The request body isn't valid JSON."
+    FormError:
+      description: The form didn't pass validation, the photo isn't an accepted image, or the `data` part isn't valid JSON.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingFields:
+              summary: Required fields left empty
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Please check the highlighted fields.
+                  fields:
+                    name: Please enter the name.
+                    phone: Please enter a phone number.
+                    address: Please enter the address.
+                    visitDate: Please pick the visit date.
+            badValues:
+              summary: Values in the wrong form
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Please check the highlighted fields.
+                  fields:
+                    email: Please enter a valid email address.
+                    fees.firstVisit: Enter the fee as a whole number of taka.
+            badPhoto:
+              summary: The photo is not a JPG, PNG or WebP image, or is over 2 MB
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Please check the highlighted fields.
+                  fields:
+                    photo: Choose a JPG, PNG or WebP photo of 2 MB or less.
+            invalidData:
+              summary: The data part of the upload is not valid JSON
+              value:
+                error:
+                  code: INVALID_JSON
+                  message: "The form data isn't valid JSON."
+    BadId:
+      description: The id in the URL is not a valid id.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Please check the highlighted fields.
+              fields:
+                id: That ID is not valid.
+    Unauthorized:
+      description: Not signed in, or the session expired or was ended (for example after a password reset).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            signedOut:
+              summary: No session cookie
+              value:
+                error:
+                  code: UNAUTHORIZED
+                  message: Please sign in to continue.
+            expired:
+              summary: The session expired or was ended
+              value:
+                error:
+                  code: UNAUTHORIZED
+                  message: Your session has expired. Please sign in again.
+    Forbidden:
+      description: Signed in, but this role isn't allowed to do this.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: FORBIDDEN
+              message: "You don't have permission to do that."
+    NotFound:
+      description: Nothing exists at this id, or it is a record this marketing user can't see.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: "We couldn't find that. It may have been deleted."
+    TooManyRequests:
+      description: Too many failed sign-in attempts for this email from this IP. Try again after the 15-minute window.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: TOO_MANY_REQUESTS
+              message: Too many sign-in attempts. Please wait 15 minutes and try again.
+    InternalError:
+      description: Something broke on the server. The details are in the server log, never in the response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: Something went wrong on our side. Please try again.
+
+  schemas:
+    # ---------- Building blocks ----------
+    ObjectId:
+      type: string
+      pattern: '^[a-f0-9]{24}$'
+      description: A database id.
+      examples: ['6717a3f9c2b1e45d8a0f1a02']
+    DateTime:
+      type: string
+      format: date-time
+      description: An ISO 8601 date and time in UTC.
+      examples: ['2026-10-21T11:00:00.000Z']
+    Phone:
+      type: string
+      pattern: '^\+8801[3-9]\d{8}$'
+      description: A Bangladesh mobile number in E.164 form, as stored and returned by the API.
+      examples: ['+8801711234567']
+    PhoneInput:
+      type: string
+      minLength: 10
+      maxLength: 20
+      description: |
+        A Bangladesh mobile number in any common format. Spaces, dashes and the country code are
+        optional, so `01711234567`, `8801711234567` and `+880 1711-234567` are all accepted. It is
+        stored as `+8801711234567`.
+      examples: ['01711234567', '+880 1711-234567']
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+      description: Trimmed and stored in lower case.
+      examples: ['rafi.hasan@example.com']
+    OptionalEmail:
+      type: string
+      maxLength: 254
+      description: An email address, or an empty string when there is none.
+      anyOf:
+        - format: email
+        - maxLength: 0
+      examples: ['tanvir.ahmed@squarehospital.com', '']
+    Password:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 72
+      description: Anything that isn't empty, up to 72 characters. There are no rules about length, letters or numbers.
+      examples: ['Field-Team-2026', '1234']
+    TemporaryPassword:
+      type: string
+      description: |
+        Two words and four digits, so it is easy to read out or send in a message. It is shown only
+        once. The teammate signs in with it and then chooses their own password.
+      examples: ['Mango-4821-River']
+    Role:
+      type: string
+      enum: [admin, marketing]
+      description: |
+        - `admin`: everything, including team accounts and deleting records
+        - `marketing`: fills in and updates doctor and pharmacy forms
+    OnboardingStatus:
+      type: string
+      enum: [ongoing, setup, implementation]
+      description: |
+        Where a doctor or pharmacy is in onboarding. New records start as `ongoing`.
+        - `ongoing`: talks have started and the form is being filled in
+        - `setup`: the form is complete; profile, slots and fees are being set up in PharmaZ247
+        - `implementation`: going live, with training and the first bookings
+    Weekday:
+      type: string
+      enum: [sat, sun, mon, tue, wed, thu, fri]
+      description: A day of the week. The week starts on Saturday.
+    OptionalTime:
+      type: string
+      pattern: '^(([01]\d|2[0-3]):[0-5]\d)?$'
+      description: A 24-hour Asia/Dhaka time (`HH:mm`), or an empty string when not given.
+      examples: ['17:00', '']
+    UserRef:
+      type: object
+      description: A short reference to a teammate.
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        name:
+          type: string
+      examples:
+        - id: '6717a3f9c2b1e45d8a0f1a02'
+          name: Rafi Hasan
+    Submitter:
+      type: object
+      description: The person who submitted a form, so the team knows whom to ask about it.
+      required: [id, name, phone]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        name:
+          type: string
+        phone:
+          description: '`null` only for an older account that has no phone number yet.'
+          anyOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+      examples:
+        - id: '6717a3f9c2b1e45d8a0f1a02'
+          name: Rafi Hasan
+          phone: '+8801711234567'
+    PhotoUrl:
+      type: [string, 'null']
+      pattern: '^/api/v1/uploads/[^/]+$'
+      description: Where to load the photo (needs a signed-in session), or `null` when there is no photo.
+      examples: ['/api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg']
+    StatusCounts:
+      type: object
+      description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
+      required: [all, ongoing, setup, implementation]
+      properties:
+        all:
+          type: integer
+          minimum: 0
+        ongoing:
+          type: integer
+          minimum: 0
+        setup:
+          type: integer
+          minimum: 0
+        implementation:
+          type: integer
+          minimum: 0
+
+    # ---------- Errors ----------
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - INVALID_JSON
+        - BAD_REQUEST
+        - SELF_CHANGE
+        - UNAUTHORIZED
+        - INVALID_CREDENTIALS
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        - NOT_FOUND
+        - EMAIL_TAKEN
+        - DUPLICATE
+        - TOO_MANY_REQUESTS
+        - INTERNAL_ERROR
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+              description: A sentence written for people. The web app shows it as it is.
+            fields:
+              type: object
+              description: Field-level problems. Keys are dot paths into the request body or query (for example `fees.firstVisit`), and values are messages for people.
+              additionalProperties:
+                type: string
+
+    # ---------- Users and auth ----------
+    User:
+      type: object
+      required: [id, name, email, phone, role, isActive, mustChangePassword, lastLoginAt, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        email:
+          $ref: '#/components/schemas/Email'
+        phone:
+          anyOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+        role:
+          $ref: '#/components/schemas/Role'
+        isActive:
+          type: boolean
+          description: '`false` after an admin deactivates the account. Deactivated people cannot sign in.'
+        mustChangePassword:
+          type: boolean
+          description: '`true` after an admin creates the account or resets its password, until the person chooses their own.'
+        lastLoginAt:
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+        createdBy:
+          description: The admin who created the account. `null` for the first admin, who is created by the seed script.
+          anyOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+    UserListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    CreatedUserResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, temporaryPassword]
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            temporaryPassword:
+              $ref: '#/components/schemas/TemporaryPassword'
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          type: string
+          format: password
+          minLength: 1
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          minLength: 1
+          description: The password used to sign in (the temporary one at first sign-in).
+        newPassword:
+          $ref: '#/components/schemas/Password'
+    CreateUserRequest:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+          examples: ['Rafi Hasan']
+        email:
+          $ref: '#/components/schemas/Email'
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+          description: Shown on every form this teammate submits.
+        role:
+          $ref: '#/components/schemas/Role'
+          default: marketing
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+          description: A new phone number. It can't be removed, only changed.
+        role:
+          $ref: '#/components/schemas/Role'
+        isActive:
+          type: boolean
+          description: '`false` deactivates the account and signs the person out everywhere. `true` reactivates it.'
+
+    # ---------- Doctor and pharmacy records ----------
+    RecordType:
+      type: string
+      enum: [doctor, pharmacy]
+    HistoryEntry:
+      type: object
+      description: One status or visit-date change.
+      required: [status, visitDate, note, steps, by, at]
+      properties:
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+        note:
+          type: string
+          description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, or the note given with a status change (empty when none was given).'
+        steps:
+          description: How far the implementation steps were at that moment. Set by status updates to `implementation` when there are steps; otherwise `null`.
+          anyOf:
+            - $ref: '#/components/schemas/StepProgress'
+            - type: 'null'
+        by:
+          description: Who made the change, or `null` when that isn't known.
+          anyOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        at:
+          $ref: '#/components/schemas/DateTime'
+          description: When the change was made.
+    StepProgress:
+      type: object
+      description: How many implementation steps are done, out of how many.
+      required: [done, total]
+      properties:
+        done:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 1
+      examples:
+        - done: 1
+          total: 2
+    ImplementationStep:
+      type: object
+      description: One step of an implementation that takes several visits.
+      required: [id, title, done, doneAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        title:
+          type: string
+          description: What the step is, in the marketer's words.
+          examples: ['Train the chamber assistant']
+        done:
+          type: boolean
+        doneAt:
+          description: When the step was ticked off, or `null` while it is still to do.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+    ImplementationStepInput:
+      type: object
+      description: A step as the status update sends it. Existing steps send their `id`; new steps leave it out.
+      required: [title]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        title:
+          type: string
+          minLength: 2
+          maxLength: 120
+        done:
+          type: boolean
+          default: false
+    RecordBase:
+      type: object
+      description: The fields every record has.
+      required: [id, type, name, phone, email, address, visitDate, status, notes, photoUrl, implementationSteps, history, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        type:
+          $ref: '#/components/schemas/RecordType'
+        name:
+          type: string
+          description: The doctor's full name (form field 1) or the pharmacy's name.
+        phone:
+          $ref: '#/components/schemas/Phone'
+        email:
+          $ref: '#/components/schemas/OptionalEmail'
+        address:
+          type: string
+          description: The chamber address (form field 7) or the pharmacy's address.
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+          description: When the marketer visits, or visited. This puts the record on the calendar.
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        notes:
+          type: string
+          description: Anything else worth knowing. Empty when there is nothing.
+        photoUrl:
+          $ref: '#/components/schemas/PhotoUrl'
+        implementationSteps:
+          type: array
+          description: The implementation checklist, in order. Empty until someone adds a step.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ImplementationStep'
+        history:
+          type: array
+          description: Every status and visit-date change, oldest first. The first entry is "Form submitted".
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+        createdBy:
+          $ref: '#/components/schemas/Submitter'
+          description: The marketing person who submitted the form, with their phone number. Only they and the admins can see the form.
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    ConsultationType:
+      type: string
+      enum: [in_person, teleconsultation]
+    SlotDuration:
+      type: [integer, 'null']
+      enum: [10, 15, 20, 30, 45, 60, null]
+      description: '(10) Slot Duration: minutes per appointment, or `null` when not given.'
+    Fee:
+      type: [integer, 'null']
+      minimum: 0
+      description: Whole taka (৳), or `null` when not given.
+    FeesForm:
+      type: object
+      description: '(12–15) Fees. Leave a fee out (or send `null`) when it is not known yet.'
+      properties:
+        firstVisit:
+          $ref: '#/components/schemas/Fee'
+          description: (12) First Visit.
+        reportView:
+          $ref: '#/components/schemas/Fee'
+          description: (13) Report View.
+        secondVisit:
+          $ref: '#/components/schemas/Fee'
+          description: (14) 2nd Visit (within 1 month).
+        afterOneMonth:
+          $ref: '#/components/schemas/Fee'
+          description: (15) After 1 month.
+    Fees:
+      allOf:
+        - $ref: '#/components/schemas/FeesForm'
+        - required: [firstVisit, reportView, secondVisit, afterOneMonth]
+    DoctorFields:
+      type: object
+      description: The doctor-only fields. Numbers in brackets are the paper form's fields.
+      properties:
+        bmdcRegNo:
+          type: string
+          description: (3) BMDC Reg. No.
+          examples: ['A-43921']
+        chamberName:
+          type: string
+          description: (6) Chamber Name.
+        chamberNo:
+          type: string
+          description: (9) Chamber No.
+        consultationTypes:
+          type: array
+          description: '(8) Consultation Type: one or both.'
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ConsultationType'
+        slotDuration:
+          $ref: '#/components/schemas/SlotDuration'
+        availableDays:
+          type: array
+          description: (11) Available days.
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Weekday'
+        availableFrom:
+          $ref: '#/components/schemas/OptionalTime'
+          description: (11) Available from.
+        availableTo:
+          $ref: '#/components/schemas/OptionalTime'
+          description: (11) Available until.
+    Doctor:
+      description: |
+        A filled-in Doctor Onboarding Form. The paper form's fields map to: (1) `name`,
+        (2) `photoUrl`, (3) `bmdcRegNo`, (4) `phone`, (5) `email`, (6) `chamberName`, (7) `address`,
+        (8) `consultationTypes`, (9) `chamberNo`, (10) `slotDuration`, (11) `availableDays`,
+        `availableFrom` and `availableTo`, (12–15) `fees`.
+      allOf:
+        - $ref: '#/components/schemas/RecordBase'
+        - $ref: '#/components/schemas/DoctorFields'
+        - type: object
+          required: [bmdcRegNo, chamberName, chamberNo, consultationTypes, slotDuration, availableDays, availableFrom, availableTo, fees]
+          properties:
+            type:
+              const: doctor
+            fees:
+              $ref: '#/components/schemas/Fees'
+    PaymentMethod:
+      type: string
+      enum: [cash, bkash, nagad, card]
+    PharmacyFields:
+      type: object
+      description: The pharmacy-only fields (draft until the pharmacy paper form is confirmed).
+      properties:
+        ownerName:
+          type: string
+        drugLicenseNo:
+          type: string
+          description: DGDA drug licence no.
+          examples: ['DL-12345']
+        tradeLicenseNo:
+          type: string
+        area:
+          type: string
+          description: Thana or area, for example Dhanmondi.
+        district:
+          type: string
+        availableDays:
+          type: array
+          description: Opening days.
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Weekday'
+        availableFrom:
+          $ref: '#/components/schemas/OptionalTime'
+          description: Opens at.
+        availableTo:
+          $ref: '#/components/schemas/OptionalTime'
+          description: Closes at.
+        homeDelivery:
+          type: [boolean, 'null']
+          description: Does the pharmacy deliver? `null` when not known.
+        paymentMethods:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/PaymentMethod'
+    Pharmacy:
+      description: A filled-in pharmacy onboarding form.
+      allOf:
+        - $ref: '#/components/schemas/RecordBase'
+        - $ref: '#/components/schemas/PharmacyFields'
+        - type: object
+          required: [ownerName, drugLicenseNo, tradeLicenseNo, area, district, availableDays, availableFrom, availableTo, homeDelivery, paymentMethods]
+          properties:
+            type:
+              const: pharmacy
+    RecordFormBase:
+      type: object
+      description: |
+        The fields every form sends. Only `name`, `phone`, `address` and `visitDate` are required.
+        Anything left out is saved empty: `""` for text, `[]` for lists and `null` for numbers and
+        yes/no answers.
+      required: [name, phone, address, visitDate]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+        email:
+          $ref: '#/components/schemas/OptionalEmail'
+        address:
+          type: string
+          minLength: 3
+        visitDate:
+          type: string
+          format: date-time
+          description: The visit date and time. ISO 8601 is best, for example `2026-10-21T11:00:00.000Z`.
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+          default: ongoing
+        notes:
+          type: string
+    DoctorForm:
+      description: A doctor form, as the web app sends it.
+      allOf:
+        - $ref: '#/components/schemas/RecordFormBase'
+        - $ref: '#/components/schemas/DoctorFields'
+        - type: object
+          properties:
+            fees:
+              $ref: '#/components/schemas/FeesForm'
+    PharmacyForm:
+      description: A pharmacy form, as the web app sends it.
+      allOf:
+        - $ref: '#/components/schemas/RecordFormBase'
+        - $ref: '#/components/schemas/PharmacyFields'
+    FormUpload:
+      type: object
+      description: A form sent with a photo.
+      required: [data]
+      properties:
+        data:
+          type: string
+          description: The form fields as a JSON string, exactly like the JSON body.
+          examples: ['{"name":"Dr. Tanvir Ahmed (Cardiology)","phone":"01711234567","address":"18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka","visitDate":"2026-10-21T11:00:00.000Z"}']
+        photo:
+          type: string
+          format: binary
+          description: 'Optional. A JPG, PNG or WebP image, at most 2 MB. On `PUT` it replaces the current photo; leave it out to keep the current one.'
+    StatusChangeRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+          description: Optional. A new visit date. Without it, the current one stays.
+        note:
+          type: string
+          maxLength: 500
+          description: Optional. Saved on the history entry, for example what happened at the visit.
+        implementationSteps:
+          type: array
+          description: Optional. The whole checklist, which replaces the current one. Leave it out to keep the current steps.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ImplementationStepInput'
+    RecordListMeta:
+      type: object
+      required: [counts]
+      properties:
+        counts:
+          $ref: '#/components/schemas/StatusCounts'
+    DoctorResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Doctor'
+    DoctorListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Doctor'
+        meta:
+          $ref: '#/components/schemas/RecordListMeta'
+    PharmacyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Pharmacy'
+    PharmacyListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pharmacy'
+        meta:
+          $ref: '#/components/schemas/RecordListMeta'
+
+    # ---------- Calendar ----------
+    CalendarItem:
+      type: object
+      description: One visit on the calendar.
+      required: [id, type, name, place, address, status, steps, visitDate, phone, photoUrl, createdBy]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        type:
+          $ref: '#/components/schemas/RecordType'
+        name:
+          type: string
+        place:
+          type: string
+          description: The doctor's chamber name (or the address when there is none), or the pharmacy's name.
+        address:
+          type: string
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        steps:
+          description: How many implementation steps are done, or `null` when the record has none.
+          anyOf:
+            - $ref: '#/components/schemas/StepProgress'
+            - type: 'null'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+        phone:
+          $ref: '#/components/schemas/Phone'
+        photoUrl:
+          $ref: '#/components/schemas/PhotoUrl'
+        createdBy:
+          description: Whose visit it is (the person who submitted the form), or `null` when that isn't known.
+          anyOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+    CalendarResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          description: Sorted by `visitDate`, soonest first.
+          items:
+            $ref: '#/components/schemas/CalendarItem'
+
+  examples:
+    AdminUser:
+      summary: The admin
+      value:
+        data:
+          id: '6717a3f9c2b1e45d8a0f1a01'
+          name: Wakil Israk Abir
+          email: wakil@example.com
+          phone: null
+          role: admin
+          isActive: true
+          mustChangePassword: false
+          lastLoginAt: '2026-10-20T08:15:00.000Z'
+          createdBy: null
+          createdAt: '2026-10-20T07:00:00.000Z'
+          updatedAt: '2026-10-20T08:15:00.000Z'
+    MarketingUser:
+      summary: A marketer
+      value:
+        data:
+          id: '6717a3f9c2b1e45d8a0f1a02'
+          name: Rafi Hasan
+          email: rafi.hasan@example.com
+          phone: '+8801711234567'
+          role: marketing
+          isActive: true
+          mustChangePassword: false
+          lastLoginAt: '2026-10-20T09:40:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a01'
+            name: Wakil Israk Abir
+          createdAt: '2026-10-20T09:00:00.000Z'
+          updatedAt: '2026-10-20T09:41:00.000Z'
+    MarketingUserMustChangePassword:
+      summary: A marketer at their first sign-in
+      value:
+        data:
+          id: '6717a3f9c2b1e45d8a0f1a02'
+          name: Rafi Hasan
+          email: rafi.hasan@example.com
+          phone: '+8801711234567'
+          role: marketing
+          isActive: true
+          mustChangePassword: true
+          lastLoginAt: '2026-10-20T09:40:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a01'
+            name: Wakil Israk Abir
+          createdAt: '2026-10-20T09:00:00.000Z'
+          updatedAt: '2026-10-20T09:40:00.000Z'
+    UserList:
+      summary: The team
+      value:
+        data:
+          - id: '6717a3f9c2b1e45d8a0f1a02'
+            name: Rafi Hasan
+            email: rafi.hasan@example.com
+            phone: '+8801711234567'
+            role: marketing
+            isActive: true
+            mustChangePassword: false
+            lastLoginAt: '2026-10-20T09:40:00.000Z'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a01'
+              name: Wakil Israk Abir
+            createdAt: '2026-10-20T09:00:00.000Z'
+            updatedAt: '2026-10-20T09:41:00.000Z'
+          - id: '6717a3f9c2b1e45d8a0f1a01'
+            name: Wakil Israk Abir
+            email: wakil@example.com
+            phone: null
+            role: admin
+            isActive: true
+            mustChangePassword: false
+            lastLoginAt: '2026-10-20T08:15:00.000Z'
+            createdBy: null
+            createdAt: '2026-10-20T07:00:00.000Z'
+            updatedAt: '2026-10-20T08:15:00.000Z'
+    CreatedUser:
+      summary: A new teammate and their temporary password
+      value:
+        data:
+          user:
+            id: '6717a3f9c2b1e45d8a0f1a02'
+            name: Rafi Hasan
+            email: rafi.hasan@example.com
+            phone: '+8801711234567'
+            role: marketing
+            isActive: true
+            mustChangePassword: true
+            lastLoginAt: null
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a01'
+              name: Wakil Israk Abir
+            createdAt: '2026-10-20T09:00:00.000Z'
+            updatedAt: '2026-10-20T09:00:00.000Z'
+          temporaryPassword: Mango-4821-River
+    DoctorTanvirForm:
+      summary: The sample paper form, filled in by a marketer
+      value:
+        name: Dr. Tanvir Ahmed (Cardiology)
+        bmdcRegNo: A-43921
+        phone: '+880 1711-234567'
+        email: tanvir.ahmed@squarehospital.com
+        chamberName: Square Hospital Chambers
+        address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
+        consultationTypes: [in_person]
+        chamberNo: Room 402
+        slotDuration: 20
+        availableDays: [sat, sun, mon, tue, wed]
+        availableFrom: '17:00'
+        availableTo: '21:00'
+        fees:
+          firstVisit: 1500
+          reportView: 400
+          secondVisit: 800
+          afterOneMonth: 1200
+        visitDate: '2026-10-21T11:00:00.000Z'
+        status: ongoing
+        notes: Prefers visits after 5 PM, before the chamber gets busy.
+    DoctorTanvir:
+      summary: Dr. Tanvir Ahmed, just after the form was submitted
+      value:
+        data:
+          id: '6717b2e4c2b1e45d8a0f2b10'
+          type: doctor
+          name: Dr. Tanvir Ahmed (Cardiology)
+          phone: '+8801711234567'
+          email: tanvir.ahmed@squarehospital.com
+          address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
+          visitDate: '2026-10-21T11:00:00.000Z'
+          status: ongoing
+          notes: Prefers visits after 5 PM, before the chamber gets busy.
+          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+          bmdcRegNo: A-43921
+          chamberName: Square Hospital Chambers
+          chamberNo: Room 402
+          consultationTypes: [in_person]
+          slotDuration: 20
+          availableDays: [sat, sun, mon, tue, wed]
+          availableFrom: '17:00'
+          availableTo: '21:00'
+          fees:
+            firstVisit: 1500
+            reportView: 400
+            secondVisit: 800
+            afterOneMonth: 1200
+          implementationSteps: []
+          history:
+            - status: ongoing
+              visitDate: '2026-10-21T11:00:00.000Z'
+              note: Form submitted
+              steps: null
+              by:
+                id: '6717a3f9c2b1e45d8a0f1a02'
+                name: Rafi Hasan
+              at: '2026-10-20T10:05:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a02'
+            name: Rafi Hasan
+            phone: '+8801711234567'
+          createdAt: '2026-10-20T10:05:00.000Z'
+          updatedAt: '2026-10-20T10:05:00.000Z'
+    DoctorTanvirLive:
+      summary: Dr. Tanvir Ahmed in Implementation, one of two steps done
+      value:
+        data:
+          id: '6717b2e4c2b1e45d8a0f2b10'
+          type: doctor
+          name: Dr. Tanvir Ahmed (Cardiology)
+          phone: '+8801711234567'
+          email: tanvir.ahmed@squarehospital.com
+          address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
+          visitDate: '2026-10-28T11:00:00.000Z'
+          status: implementation
+          notes: Prefers visits after 5 PM, before the chamber gets busy.
+          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+          bmdcRegNo: A-43921
+          chamberName: Square Hospital Chambers
+          chamberNo: Room 402
+          consultationTypes: [in_person]
+          slotDuration: 20
+          availableDays: [sat, sun, mon, tue, wed]
+          availableFrom: '17:00'
+          availableTo: '21:00'
+          fees:
+            firstVisit: 1500
+            reportView: 400
+            secondVisit: 800
+            afterOneMonth: 1200
+          implementationSteps:
+            - id: '6717d0c4c2b1e45d8a0f4e01'
+              title: Profile live in the app
+              done: true
+              doneAt: '2026-10-21T12:30:00.000Z'
+            - id: '6717d0c4c2b1e45d8a0f4e02'
+              title: Train the chamber assistant
+              done: false
+              doneAt: null
+          history:
+            - status: ongoing
+              visitDate: '2026-10-21T11:00:00.000Z'
+              note: Form submitted
+              steps: null
+              by:
+                id: '6717a3f9c2b1e45d8a0f1a02'
+                name: Rafi Hasan
+              at: '2026-10-20T10:05:00.000Z'
+            - status: implementation
+              visitDate: '2026-10-28T11:00:00.000Z'
+              note: Training done
+              steps:
+                done: 1
+                total: 2
+              by:
+                id: '6717a3f9c2b1e45d8a0f1a02'
+                name: Rafi Hasan
+              at: '2026-10-21T12:30:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a02'
+            name: Rafi Hasan
+            phone: '+8801711234567'
+          createdAt: '2026-10-20T10:05:00.000Z'
+          updatedAt: '2026-10-21T12:30:00.000Z'
+    DoctorList:
+      summary: The doctor list, with counts for each status tab
+      value:
+        data:
+          - id: '6717b2e4c2b1e45d8a0f2b10'
+            type: doctor
+            name: Dr. Tanvir Ahmed (Cardiology)
+            phone: '+8801711234567'
+            email: tanvir.ahmed@squarehospital.com
+            address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
+            visitDate: '2026-10-21T11:00:00.000Z'
+            status: ongoing
+            notes: ''
+            photoUrl: null
+            bmdcRegNo: A-43921
+            chamberName: Square Hospital Chambers
+            chamberNo: Room 402
+            consultationTypes: [in_person]
+            slotDuration: 20
+            availableDays: [sat, sun, mon, tue, wed]
+            availableFrom: '17:00'
+            availableTo: '21:00'
+            fees:
+              firstVisit: 1500
+              reportView: 400
+              secondVisit: 800
+              afterOneMonth: 1200
+            implementationSteps: []
+            history:
+              - status: ongoing
+                visitDate: '2026-10-21T11:00:00.000Z'
+                note: Form submitted
+                steps: null
+                by:
+                  id: '6717a3f9c2b1e45d8a0f1a02'
+                  name: Rafi Hasan
+                at: '2026-10-20T10:05:00.000Z'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a02'
+              name: Rafi Hasan
+              phone: '+8801711234567'
+            createdAt: '2026-10-20T10:05:00.000Z'
+            updatedAt: '2026-10-20T10:05:00.000Z'
+        meta:
+          counts:
+            all: 12
+            ongoing: 5
+            setup: 4
+            implementation: 3
+    PharmacyRahmanForm:
+      summary: A sample pharmacy form
+      value:
+        name: Rahman Pharmacy
+        ownerName: Abdur Rahman
+        phone: '01811-223344'
+        email: ''
+        address: 'House 12, Road 27, Dhanmondi, Dhaka'
+        area: Dhanmondi
+        district: Dhaka
+        drugLicenseNo: DL-12345
+        tradeLicenseNo: ''
+        availableDays: [sat, sun, mon, tue, wed, thu]
+        availableFrom: '09:00'
+        availableTo: '22:00'
+        homeDelivery: true
+        paymentMethods: [cash, bkash]
+        visitDate: '2026-10-21T05:00:00.000Z'
+        notes: The owner is in the shop every morning.
+    PharmacyRahman:
+      summary: Rahman Pharmacy, just after the form was submitted
+      value:
+        data:
+          id: '6717c3a1c2b1e45d8a0f3d01'
+          type: pharmacy
+          name: Rahman Pharmacy
+          phone: '+8801811223344'
+          email: ''
+          address: 'House 12, Road 27, Dhanmondi, Dhaka'
+          visitDate: '2026-10-21T05:00:00.000Z'
+          status: ongoing
+          notes: The owner is in the shop every morning.
+          photoUrl: null
+          ownerName: Abdur Rahman
+          drugLicenseNo: DL-12345
+          tradeLicenseNo: ''
+          area: Dhanmondi
+          district: Dhaka
+          availableDays: [sat, sun, mon, tue, wed, thu]
+          availableFrom: '09:00'
+          availableTo: '22:00'
+          homeDelivery: true
+          paymentMethods: [cash, bkash]
+          implementationSteps: []
+          history:
+            - status: ongoing
+              visitDate: '2026-10-21T05:00:00.000Z'
+              note: Form submitted
+              steps: null
+              by:
+                id: '6717a3f9c2b1e45d8a0f1a02'
+                name: Rafi Hasan
+              at: '2026-10-20T10:20:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a02'
+            name: Rafi Hasan
+            phone: '+8801711234567'
+          createdAt: '2026-10-20T10:20:00.000Z'
+          updatedAt: '2026-10-20T10:20:00.000Z'
+    PharmacyList:
+      summary: The pharmacy list, with counts for each status tab
+      value:
+        data:
+          - id: '6717c3a1c2b1e45d8a0f3d01'
+            type: pharmacy
+            name: Rahman Pharmacy
+            phone: '+8801811223344'
+            email: ''
+            address: 'House 12, Road 27, Dhanmondi, Dhaka'
+            visitDate: '2026-10-21T05:00:00.000Z'
+            status: ongoing
+            notes: ''
+            photoUrl: null
+            ownerName: Abdur Rahman
+            drugLicenseNo: DL-12345
+            tradeLicenseNo: ''
+            area: Dhanmondi
+            district: Dhaka
+            availableDays: [sat, sun, mon, tue, wed, thu]
+            availableFrom: '09:00'
+            availableTo: '22:00'
+            homeDelivery: true
+            paymentMethods: [cash, bkash]
+            implementationSteps: []
+            history:
+              - status: ongoing
+                visitDate: '2026-10-21T05:00:00.000Z'
+                note: Form submitted
+                steps: null
+                by:
+                  id: '6717a3f9c2b1e45d8a0f1a02'
+                  name: Rafi Hasan
+                at: '2026-10-20T10:20:00.000Z'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a02'
+              name: Rafi Hasan
+              phone: '+8801711234567'
+            createdAt: '2026-10-20T10:20:00.000Z'
+            updatedAt: '2026-10-20T10:20:00.000Z'
+        meta:
+          counts:
+            all: 1
+            ongoing: 1
+            setup: 0
+            implementation: 0
+    CalendarTomorrow:
+      summary: Two visits tomorrow, soonest first
+      value:
+        data:
+          - id: '6717c3a1c2b1e45d8a0f3d01'
+            type: pharmacy
+            name: Rahman Pharmacy
+            place: Rahman Pharmacy
+            address: 'House 12, Road 27, Dhanmondi, Dhaka'
+            status: ongoing
+            steps: null
+            visitDate: '2026-10-21T05:00:00.000Z'
+            phone: '+8801811223344'
+            photoUrl: null
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a02'
+              name: Rafi Hasan
+          - id: '6717b2e4c2b1e45d8a0f2b10'
+            type: doctor
+            name: Dr. Tanvir Ahmed (Cardiology)
+            place: Square Hospital Chambers
+            address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
+            status: implementation
+            steps:
+              done: 1
+              total: 2
+            visitDate: '2026-10-21T11:00:00.000Z'
+            phone: '+8801711234567'
+            photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a02'
+              name: Rafi Hasan

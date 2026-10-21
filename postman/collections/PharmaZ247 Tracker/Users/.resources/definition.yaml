@@ -1,0 +1,6 @@
+$kind: collection
+description: |-
+  Team accounts, end to end. The admin adds a teammate, the teammate signs in for the first time
+  and chooses a password, then the admin resets and deactivates the account. The sign-in and
+  sign-out steps each role switch needs are part of the flow, so the subfolders run in order.
+order: 3000

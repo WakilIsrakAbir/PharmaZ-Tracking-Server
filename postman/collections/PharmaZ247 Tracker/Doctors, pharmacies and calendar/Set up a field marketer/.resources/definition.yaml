@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  The admin adds a marketer for this folder, who then signs in and chooses a password. The admin also
+  adds a second marketer, who is used later to check that marketers only see their own forms.
+order: 1000

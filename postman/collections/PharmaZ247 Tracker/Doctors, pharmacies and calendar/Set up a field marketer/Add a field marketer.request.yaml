@@ -1,0 +1,38 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{fieldUserName}}",
+      "email": "{{fieldUserEmail}}",
+      "phone": "01912345678",
+      "role": "marketing"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('fieldUserName', 'Field QA Marketer');
+      pm.collectionVariables.set('fieldUserEmail', `field.${Date.now()}@example.com`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const data = pm.response.json().data || {};
+      const user = data.user || {};
+      pm.test('a marketer with a one-time temporary password', () => {
+        pm.expect(user.id).to.match(/^[a-f0-9]{24}$/);
+        pm.expect(user.role).to.eql('marketing');
+        pm.expect(user.name).to.eql(pm.collectionVariables.get('fieldUserName'));
+        pm.expect(data.temporaryPassword).to.be.a('string').with.length.above(7);
+      });
+      if (user.id) {
+        pm.collectionVariables.set('fieldUserId', user.id);
+        pm.collectionVariables.set('fieldUserTempPassword', data.temporaryPassword);
+      }

@@ -1,0 +1,21 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?status=setup'
+order: 10000
+queryParams:
+  - key: status
+    value: setup
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('only doctors in Setup', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.not.include(pm.collectionVariables.get('doctorId'));
+        data.forEach((doctor) => pm.expect(doctor.status).to.eql('setup'));
+      });
+      pm.test('the counts ignore the status filter', () => {
+        pm.expect(meta.counts.all).to.be.at.least(2);
+        pm.expect(meta.counts.ongoing).to.be.at.least(2);
+      });

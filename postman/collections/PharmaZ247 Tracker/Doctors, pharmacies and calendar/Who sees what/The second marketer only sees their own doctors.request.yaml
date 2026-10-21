@@ -1,0 +1,19 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors'
+order: 3000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      const ids = data.map((doctor) => doctor.id);
+      pm.test("leaves out the field marketer's doctors", () => {
+        pm.expect(ids).to.not.include(pm.collectionVariables.get('doctorId'));
+        pm.expect(ids).to.not.include(pm.collectionVariables.get('doctor2Id'));
+      });
+      pm.test('shows nothing, and counts nothing, for someone who has submitted nothing', () => {
+        pm.expect(data).to.eql([]);
+        pm.expect(meta.counts).to.eql({ all: 0, ongoing: 0, setup: 0, implementation: 0 });
+      });

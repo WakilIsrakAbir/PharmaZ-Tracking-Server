@@ -1,0 +1,43 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTo}}'
+order: 5000
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTo}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const ids = items.map((item) => item.id);
+      const doctorIndex = ids.indexOf(pm.collectionVariables.get('doctorId'));
+      const pharmacyIndex = ids.indexOf(pm.collectionVariables.get('pharmacyId'));
+      pm.test('shows both the doctor and the pharmacy', () => {
+        pm.expect(doctorIndex, 'doctor').to.be.at.least(0);
+        pm.expect(pharmacyIndex, 'pharmacy').to.be.at.least(0);
+      });
+      pm.test('the 05:00 pharmacy visit comes before the 11:00 doctor visit', () => {
+        pm.expect(pharmacyIndex).to.be.below(doctorIndex);
+      });
+      pm.test('a pharmacy shows its own name as the place', () => {
+        const pharmacy = items[pharmacyIndex] || {};
+        pm.expect(pharmacy.type).to.eql('pharmacy');
+        pm.expect(pharmacy.place).to.eql('Rahman Pharmacy');
+      });
+      pm.test('sorted by visit date, soonest first', () => {
+        const times = items.map((item) => Date.parse(item.visitDate));
+        pm.expect(times).to.eql([...times].sort((a, b) => a - b));
+      });
+      pm.test('says whose visit it is', () => {
+        const doctor = items[doctorIndex] || {};
+        pm.expect(doctor.createdBy && doctor.createdBy.id).to.eql(pm.collectionVariables.get('fieldUserId'));
+        pm.expect(doctor.createdBy && doctor.createdBy.name).to.eql(pm.collectionVariables.get('fieldUserName'));
+      });
+      pm.test('shows how far each implementation is', () => {
+        pm.expect((items[doctorIndex] || {}).steps, 'doctor').to.eql({ done: 2, total: 2 });
+        pm.expect((items[pharmacyIndex] || {}).steps, 'pharmacy').to.eql(null);
+      });

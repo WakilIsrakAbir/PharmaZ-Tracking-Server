@@ -1,0 +1,26 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/users/:id'
+order: 6000
+pathVariables:
+  - key: id
+    value: '{{adminId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "isActive": false
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 when an admin tries to deactivate themselves', () => pm.response.to.have.status(400));
+      pm.test('SELF_CHANGE with a readable message', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('SELF_CHANGE');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+      });

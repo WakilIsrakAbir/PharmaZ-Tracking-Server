@@ -1,0 +1,26 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 16000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "implementationSteps": [
+        { "title": "" }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for a step with no title', () => pm.response.to.have.status(400));
+      pm.test('points at the step that needs fixing', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('implementationSteps.0.title', 'Please describe the step.');
+      });

@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Marketers can't delete forms. The admin, who sees every marketer's forms, then deletes everything
+  this folder made and signs out.
+order: 4000

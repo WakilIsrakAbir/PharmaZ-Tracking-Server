@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/users'
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 for a marketing account', () => pm.response.to.have.status(403));
+      pm.test('FORBIDDEN with a readable message', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('FORBIDDEN');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+      });

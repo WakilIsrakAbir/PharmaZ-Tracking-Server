@@ -1,0 +1,26 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "QA Marketer Twin",
+      "email": "{{newUserEmail}}",
+      "phone": "01711234568"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('409 when the email is already used', () => pm.response.to.have.status(409));
+      pm.test('EMAIL_TAKEN points at the email field', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('EMAIL_TAKEN');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+        pm.expect(error.fields).to.have.property('email').that.is.a('string').and.not.empty;
+      });

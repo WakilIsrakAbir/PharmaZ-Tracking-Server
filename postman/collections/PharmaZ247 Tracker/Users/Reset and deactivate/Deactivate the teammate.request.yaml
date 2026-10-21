@@ -1,0 +1,26 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/users/:id'
+order: 3000
+pathVariables:
+  - key: id
+    value: '{{newUserId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "isActive": false
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data || {};
+      pm.test('the account is now deactivated', () => {
+        pm.expect(data.id).to.eql(pm.collectionVariables.get('newUserId'));
+        pm.expect(data.isActive).to.eql(false);
+      });

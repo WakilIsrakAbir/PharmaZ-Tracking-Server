@@ -1,0 +1,36 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 2500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Second QA Marketer",
+      "email": "{{otherUserEmail}}",
+      "phone": "01812345678",
+      "role": "marketing"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('otherUserEmail', `other.${Date.now()}@example.com`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const data = pm.response.json().data || {};
+      const user = data.user || {};
+      pm.test('a second marketer with a one-time temporary password', () => {
+        pm.expect(user.id).to.match(/^[a-f0-9]{24}$/);
+        pm.expect(user.role).to.eql('marketing');
+        pm.expect(data.temporaryPassword).to.be.a('string').with.length.above(7);
+      });
+      if (user.id) {
+        pm.collectionVariables.set('otherUserId', user.id);
+        pm.collectionVariables.set('otherUserTempPassword', data.temporaryPassword);
+      }

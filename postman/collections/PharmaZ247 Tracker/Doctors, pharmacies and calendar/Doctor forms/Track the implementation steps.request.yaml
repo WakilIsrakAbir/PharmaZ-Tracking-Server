@@ -1,0 +1,46 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 14000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "note": "Profile is live. Training next week.",
+      "implementationSteps": [
+        { "title": "Profile live in the app", "done": true },
+        { "title": "Train the chamber assistant" }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      const steps = doctor.implementationSteps || [];
+      const [first = {}, second = {}] = steps;
+      pm.test('saves both steps in order, each with an id', () => {
+        pm.expect(steps).to.have.lengthOf(2);
+        pm.expect(first.title).to.eql('Profile live in the app');
+        pm.expect(second.title).to.eql('Train the chamber assistant');
+        steps.forEach((step) => pm.expect(step.id).to.match(/^[a-f0-9]{24}$/));
+      });
+      pm.test('the ticked step gets the day it was done; the other is still to do', () => {
+        pm.expect(first.done).to.eql(true);
+        pm.expect(new Date(first.doneAt).getTime()).to.not.be.NaN;
+        pm.expect(second.done).to.eql(false);
+        pm.expect(second.doneAt).to.eql(null);
+      });
+      pm.test('the history remembers that 1 of 2 steps was done', () => {
+        const last = doctor.history[doctor.history.length - 1];
+        pm.expect(last.status).to.eql('implementation');
+        pm.expect(last.steps).to.eql({ done: 1, total: 2 });
+      });
+      pm.collectionVariables.set('firstStepId', first.id || '');
+      pm.collectionVariables.set('secondStepId', second.id || '');
+      pm.collectionVariables.set('firstStepDoneAt', first.doneAt || '');

@@ -1,0 +1,39 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/login'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{adminEmail}}",
+      "password": "{{adminPassword}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      if (!pm.variables.get('adminEmail') || !pm.variables.get('adminPassword')) {
+        throw new Error('Pass the admin account at run time: --env-var "adminEmail=..." --env-var "adminPassword=..."');
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data || {};
+      pm.test('signed in as an active admin', () => {
+        pm.expect(data.role).to.eql('admin');
+        pm.expect(data.isActive).to.eql(true);
+        pm.expect(data.email).to.eql(String(pm.variables.get('adminEmail')).trim().toLowerCase());
+      });
+      pm.test('sets an httpOnly, SameSite=Lax session cookie', () => {
+        pm.expect(pm.cookies.has('pz_session')).to.be.true;
+        const setCookie = (pm.response.headers.get('Set-Cookie') || '').toLowerCase();
+        pm.expect(setCookie).to.include('pz_session=');
+        pm.expect(setCookie).to.include('httponly');
+        pm.expect(setCookie).to.include('samesite=lax');
+      });
+      if (data.id) pm.collectionVariables.set('adminId', data.id);

@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors/abc'
+order: 8000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for a malformed id', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR points at the id', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('id');
+      });

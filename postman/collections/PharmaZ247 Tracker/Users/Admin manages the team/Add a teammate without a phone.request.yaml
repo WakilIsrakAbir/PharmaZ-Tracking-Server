@@ -1,0 +1,26 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 3500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "No Phone Marketer",
+      "email": "no.phone@example.com",
+      "role": "marketing"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // The phone number is shown on every form a teammate submits, so it is required.
+      pm.test('400 because the phone number is missing', () => pm.response.to.have.status(400));
+      pm.test('asks for the phone number', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('phone', 'Please enter a phone number.');
+      });

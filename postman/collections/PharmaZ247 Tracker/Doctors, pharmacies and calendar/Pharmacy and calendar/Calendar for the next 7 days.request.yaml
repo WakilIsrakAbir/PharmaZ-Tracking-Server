@@ -1,0 +1,45 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTo}}'
+order: 1000
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTo}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Today at 00:00 UTC, and seven days later.
+      const from = new Date();
+      from.setUTCHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 7);
+      pm.collectionVariables.set('calendarFrom', from.toISOString());
+      pm.collectionVariables.set('calendarTo', to.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const doctor = items.find((item) => item.id === pm.collectionVariables.get('doctorId'));
+      pm.test('shows the doctor, in Implementation', () => {
+        pm.expect(doctor, 'the doctor is on the calendar').to.be.an('object');
+        pm.expect(doctor.type).to.eql('doctor');
+        pm.expect(doctor.status).to.eql('implementation');
+      });
+      pm.test('each visit has what the calendar shows', () => {
+        pm.expect(doctor).to.include.all.keys('id', 'type', 'name', 'place', 'address', 'status', 'visitDate', 'phone', 'photoUrl');
+        pm.expect(doctor.place).to.eql('Square Hospital Chambers');
+      });
+      pm.test('only visits inside the range, soonest first', () => {
+        const from = Date.parse(pm.collectionVariables.get('calendarFrom'));
+        const to = Date.parse(pm.collectionVariables.get('calendarTo'));
+        const times = items.map((item) => Date.parse(item.visitDate));
+        times.forEach((time) => {
+          pm.expect(time).to.be.at.least(from);
+          pm.expect(time).to.be.below(to);
+        });
+        pm.expect(times).to.eql([...times].sort((a, b) => a - b));
+      });

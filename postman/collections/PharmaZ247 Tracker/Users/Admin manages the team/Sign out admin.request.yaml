@@ -1,0 +1,12 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/logout'
+order: 7000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('204 No Content', () => pm.response.to.have.status(204));
+      pm.test('clears the session cookie', () => {
+        pm.expect(pm.response.headers.get('Set-Cookie') || '').to.match(/pz_session=;/);
+      });

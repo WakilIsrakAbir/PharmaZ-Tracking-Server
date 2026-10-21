@@ -1,0 +1,27 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "A",
+      "email": "not-an-email",
+      "phone": "12345",
+      "role": "boss"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for invalid details', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR lists every field that needs fixing', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.include.all.keys('name', 'email', 'phone', 'role');
+        Object.values(error.fields).forEach((message) => pm.expect(message).to.be.a('string').and.not.empty);
+      });

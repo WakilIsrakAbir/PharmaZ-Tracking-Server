@@ -1,0 +1,25 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/doctors'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "tanvir.ahmed@squarehospital.com",
+      "chamberName": "Square Hospital Chambers"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 when name, phone, address and visit date are missing', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR names each missing field', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.include.all.keys('name', 'phone', 'address', 'visitDate');
+        Object.values(error.fields).forEach((message) => pm.expect(message).to.be.a('string').and.not.empty);
+      });

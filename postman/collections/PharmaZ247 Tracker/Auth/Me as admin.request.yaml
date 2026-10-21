@@ -1,0 +1,19 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/auth/me'
+order: 5000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK with the cookie from sign-in', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data || {};
+      pm.test('is the admin who signed in', () => {
+        pm.expect(data.id).to.eql(pm.collectionVariables.get('adminId'));
+        pm.expect(data.role).to.eql('admin');
+      });
+      pm.test('has every User field from the contract', () => {
+        pm.expect(data).to.include.all.keys('id', 'name', 'email', 'phone', 'role', 'isActive',
+          'mustChangePassword', 'lastLoginAt', 'createdBy', 'createdAt', 'updatedAt');
+        pm.expect(data.lastLoginAt).to.be.a('string');
+      });

@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/health'
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      pm.test('says ok, without the data envelope', () => {
+        const body = pm.response.json();
+        pm.expect(body.ok).to.eql(true);
+        pm.expect(body).to.not.have.property('data');
+      });

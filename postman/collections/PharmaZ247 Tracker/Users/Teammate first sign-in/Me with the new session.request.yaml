@@ -1,0 +1,15 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/auth/me'
+order: 6000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // The password change ended the old session, so this only passes if the new cookie works.
+      pm.test('200 OK with the new session', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data || {};
+      pm.test('is the teammate, with their own password now', () => {
+        pm.expect(data.id).to.eql(pm.collectionVariables.get('newUserId'));
+        pm.expect(data.mustChangePassword).to.eql(false);
+      });

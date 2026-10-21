@@ -1,0 +1,28 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/login'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{newUserEmail}}",
+      "password": "{{newUserResetPassword}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // The password is right, so the answer must be about the account, not the password.
+      pm.test('403 for a deactivated account', () => pm.response.to.have.status(403));
+      pm.test('ACCOUNT_INACTIVE with a readable message', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('ACCOUNT_INACTIVE');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+      });
+      pm.test('no session cookie is set', () => {
+        pm.expect(pm.response.headers.get('Set-Cookie') || '').to.not.match(/pz_session=[^;]/);
+      });

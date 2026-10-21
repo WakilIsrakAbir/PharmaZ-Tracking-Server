@@ -1,0 +1,24 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/login'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{fieldUserEmail}}",
+      "password": "{{fieldUserTempPassword}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      pm.test('signed in as the field marketer, who must choose a password', () => {
+        const data = pm.response.json().data || {};
+        pm.expect(data.id).to.eql(pm.collectionVariables.get('fieldUserId'));
+        pm.expect(data.mustChangePassword).to.eql(true);
+      });

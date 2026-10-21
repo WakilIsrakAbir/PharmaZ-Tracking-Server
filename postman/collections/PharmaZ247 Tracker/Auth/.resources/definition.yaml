@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Signed-out checks and bad sign-ins, then signing in as the admin. Needs adminEmail and
+  adminPassword, passed with --env-var at run time.
+order: 2000

@@ -1,0 +1,3 @@
+$kind: collection
+description: The admin gives the teammate a new temporary password, then deactivates the account.
+order: 3000

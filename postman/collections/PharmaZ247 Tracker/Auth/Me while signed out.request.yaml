@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/auth/me'
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('401 when signed out', () => pm.response.to.have.status(401));
+      pm.test('error envelope with UNAUTHORIZED', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('UNAUTHORIZED');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+      });

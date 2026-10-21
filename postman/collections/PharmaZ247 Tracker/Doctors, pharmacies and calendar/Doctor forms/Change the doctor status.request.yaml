@@ -1,0 +1,32 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 12000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "note": "Training done"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('moves the doctor to Implementation', () => pm.expect(doctor.status).to.eql('implementation'));
+      pm.test('keeps the visit date when none is sent', () => {
+        pm.expect(new Date(doctor.visitDate).toISOString()).to.eql(pm.collectionVariables.get('doctorVisitDate'));
+      });
+      pm.test('adds the change, its note and who made it to the end of the history', () => {
+        pm.expect(doctor.history).to.be.an('array').with.lengthOf(3);
+        const last = doctor.history[doctor.history.length - 1];
+        pm.expect(last.status).to.eql('implementation');
+        pm.expect(last.note).to.eql('Training done');
+        pm.expect(last.by && last.by.name).to.eql(pm.collectionVariables.get('fieldUserName'));
+        pm.expect(new Date(last.at).getTime()).to.not.be.NaN;
+      });

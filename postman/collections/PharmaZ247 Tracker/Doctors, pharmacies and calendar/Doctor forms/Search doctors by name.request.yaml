@@ -1,0 +1,22 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?search=Tanvir'
+order: 9000
+queryParams:
+  - key: search
+    value: Tanvir
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('finds the doctor', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.include(pm.collectionVariables.get('doctorId'));
+      });
+      pm.test('counts each status', () => {
+        const { counts } = meta;
+        pm.expect(counts).to.include.all.keys('all', 'ongoing', 'setup', 'implementation');
+        pm.expect(counts.all).to.be.at.least(1);
+        pm.expect(counts.all).to.eql(counts.ongoing + counts.setup + counts.implementation);
+      });

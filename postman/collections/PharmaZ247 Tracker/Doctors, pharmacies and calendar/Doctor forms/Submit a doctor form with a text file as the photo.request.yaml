@@ -1,0 +1,26 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/doctors'
+order: 5000
+body:
+  type: formdata
+  content:
+    - key: data
+      type: text
+      value: '{{doctor2Data}}'
+      description: Valid form fields, so only the photo is wrong.
+    - key: photo
+      type: file
+      src: 'postman/fixtures/not-a-photo.txt'
+      contentType: text/plain
+      description: A text file. The path is relative to the repo root.
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for a file that is not a photo', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR points at the photo', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('photo').that.is.a('string').and.not.empty;
+      });

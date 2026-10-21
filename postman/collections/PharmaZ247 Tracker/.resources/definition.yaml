@@ -1,0 +1,119 @@
+$kind: collection
+name: PharmaZ247 Tracker
+description: |-
+  Contract tests for the PharmaZ247 Tracker API. The contract itself is openapi.yaml.
+
+  Run it against a throwaway API and database. `npm run test:api` does this for you. To run it by
+  hand, start from the root of this repository (the photo uploads read postman/fixtures/) and pass
+  the admin account at run time (it is never saved here):
+
+      postman collection run "postman/collections/PharmaZ247 Tracker" -e postman/environments/local.environment.yaml --env-var "adminEmail=..." --env-var "adminPassword=..."
+
+  The run relies on the cookie jar: signing in stores the pz_session cookie and later requests send
+  it automatically. Never add a Cookie header by hand. Folders and requests run in `order`, and each
+  role switch signs out first.
+variables:
+  - key: adminId
+    value: ''
+    description: Set by "Sign in as admin".
+  - key: newUserId
+    value: ''
+    description: Set by "Add a teammate".
+  - key: newUserEmail
+    value: ''
+    description: A fresh email for every run, set before "Add a teammate".
+  - key: newUserTempPassword
+    value: ''
+    description: The temporary password returned by "Add a teammate".
+  - key: newUserPassword
+    value: ''
+    description: The password the teammate chooses in "Change password".
+  - key: newUserResetPassword
+    value: ''
+    description: The temporary password returned by "Reset the teammate password".
+  - key: fieldUserName
+    value: ''
+    description: The field marketer who fills in the forms, set before "Add a field marketer".
+  - key: fieldUserEmail
+    value: ''
+    description: A fresh email for every run, set before "Add a field marketer".
+  - key: fieldUserId
+    value: ''
+    description: Set by "Add a field marketer".
+  - key: fieldUserTempPassword
+    value: ''
+    description: The temporary password returned by "Add a field marketer".
+  - key: fieldUserPassword
+    value: ''
+    description: The password the field marketer chooses.
+  - key: doctorVisitDate
+    value: ''
+    description: Tomorrow at 11:00 UTC, set before "Submit the sample doctor form".
+  - key: doctorId
+    value: ''
+    description: Set by "Submit the sample doctor form".
+  - key: doctor2Data
+    value: ''
+    description: The JSON sent in the data part of the photo uploads.
+  - key: doctor2Id
+    value: ''
+    description: Set by "Submit a doctor form with a photo".
+  - key: photoUrl
+    value: ''
+    description: The photoUrl returned by "Submit a doctor form with a photo".
+  - key: photoFullUrl
+    value: ''
+    description: photoUrl on the API's own address, set before "Load the uploaded photo".
+  - key: calendarFrom
+    value: ''
+    description: Today at 00:00 UTC, set before "Calendar for the next 7 days".
+  - key: calendarTo
+    value: ''
+    description: Seven days after calendarFrom.
+  - key: calendarTooFar
+    value: ''
+    description: Ninety days after calendarFrom, for the range that is too long.
+  - key: pharmacyVisitDate
+    value: ''
+    description: Tomorrow at 05:00 UTC, set before "Submit the sample pharmacy form".
+  - key: pharmacyId
+    value: ''
+    description: Set by "Submit the sample pharmacy form".
+  - key: otherUserEmail
+    value: ''
+    description: A second marketer, who must not see the field marketer's forms. Set before "Add a second marketer".
+  - key: otherUserId
+    value: ''
+    description: Set by "Add a second marketer".
+  - key: otherUserTempPassword
+    value: ''
+    description: The temporary password returned by "Add a second marketer".
+  - key: firstStepId
+    value: ''
+    description: The first implementation step, set by "Track the implementation steps".
+  - key: secondStepId
+    value: ''
+    description: The second implementation step, set by "Track the implementation steps".
+  - key: firstStepDoneAt
+    value: ''
+    description: When the first step was ticked off, set by "Track the implementation steps".
+scripts:
+  - type: http:afterResponse
+    language: text/javascript
+    code: |-
+      // Checks that apply to every response.
+      pm.test('responds within 3 seconds', () => {
+        pm.expect(pm.response.responseTime).to.be.below(3000);
+      });
+      // A loaded photo is an image; every other response is JSON (or empty).
+      const isPhoto = pm.response.code === 200 && pm.request.url.toString().includes('/uploads/');
+      if (!isPhoto) {
+        pm.test('never exposes a password hash', () => {
+          pm.expect(pm.response.text()).to.not.match(/passwordHash|\$2[aby]\$\d{2}\$/);
+        });
+        if (pm.response.code !== 204) {
+          pm.test('responds with JSON', () => {
+            pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');
+          });
+        }
+      }

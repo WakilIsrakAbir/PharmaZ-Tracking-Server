@@ -1,0 +1,28 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/login'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "not-an-email",
+      "password": "Whatever-123"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 for an invalid email', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR points at the email field', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.message).to.be.a('string').and.not.be.empty;
+        pm.expect(error.fields).to.have.property('email').that.is.a('string').and.not.empty;
+      });
+      pm.test('no session cookie is set', () => {
+        pm.expect(pm.response.headers.get('Set-Cookie') || '').to.not.match(/pz_session=[^;]/);
+      });

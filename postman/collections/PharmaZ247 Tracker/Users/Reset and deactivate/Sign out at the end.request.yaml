@@ -1,0 +1,9 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/auth/logout'
+order: 6000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('204 No Content', () => pm.response.to.have.status(204));

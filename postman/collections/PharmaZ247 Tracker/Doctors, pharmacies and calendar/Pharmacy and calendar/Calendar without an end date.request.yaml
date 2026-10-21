@@ -1,0 +1,17 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}'
+order: 2000
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 when the end date is missing', () => pm.response.to.have.status(400));
+      pm.test('VALIDATION_ERROR points at "to"', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('to');
+      });

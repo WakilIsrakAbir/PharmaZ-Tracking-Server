@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Still signed in as the field marketer. Checks the calendar's date-range rules, submits a pharmacy
+  form, and checks that the calendar lists doctors and pharmacies together, soonest first.
+order: 3000

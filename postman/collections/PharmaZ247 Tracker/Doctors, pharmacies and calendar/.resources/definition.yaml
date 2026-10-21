@@ -1,0 +1,10 @@
+$kind: collection
+description: |-
+  The onboarding forms, end to end, the way a field marketer uses them: submit a doctor form (with
+  and without a photo), edit it, move it through the statuses and the implementation steps, add a
+  pharmacy, and see both on the calendar. A second marketer then checks that they can't see any of
+  it. Then the admin, who sees everything, deletes everything this folder made.
+
+  It uses its own field marketer, so it doesn't depend on the teammate from the Users folder. The
+  photo uploads read postman/fixtures/, so run the collection from the root of this repository.
+order: 4000

@@ -1,0 +1,26 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/users/:id'
+order: 5500
+pathVariables:
+  - key: id
+    value: '{{newUserId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "phone": null
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 because every teammate needs a phone number', () => pm.response.to.have.status(400));
+      pm.test('asks for the phone number', () => {
+        const { error } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('phone', 'Please enter a phone number.');
+      });

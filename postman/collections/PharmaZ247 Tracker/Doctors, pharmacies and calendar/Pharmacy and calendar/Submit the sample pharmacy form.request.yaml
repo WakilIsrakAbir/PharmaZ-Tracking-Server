@@ -1,0 +1,68 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Rahman Pharmacy",
+      "ownerName": "Abdur Rahman",
+      "phone": "01811-223344",
+      "address": "House 12, Road 27, Dhanmondi, Dhaka",
+      "area": "Dhanmondi",
+      "district": "Dhaka",
+      "drugLicenseNo": "DL-12345",
+      "availableDays": ["sat", "sun", "mon", "tue", "wed", "thu"],
+      "availableFrom": "09:00",
+      "availableTo": "22:00",
+      "homeDelivery": true,
+      "paymentMethods": ["cash", "bkash"],
+      "visitDate": "{{pharmacyVisitDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Tomorrow at 05:00 UTC (11:00 AM in Dhaka), earlier than the doctor's 11:00 UTC visit.
+      const visit = new Date();
+      visit.setUTCDate(visit.getUTCDate() + 1);
+      visit.setUTCHours(5, 0, 0, 0);
+      pm.collectionVariables.set('pharmacyVisitDate', visit.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('is a pharmacy with an id', () => {
+        pm.expect(pharmacy.id).to.match(/^[a-f0-9]{24}$/);
+        pm.expect(pharmacy.type).to.eql('pharmacy');
+      });
+      pm.test('keeps the pharmacy fields', () => {
+        pm.expect(pharmacy.name).to.eql('Rahman Pharmacy');
+        pm.expect(pharmacy.ownerName).to.eql('Abdur Rahman');
+        pm.expect(pharmacy.phone).to.eql('+8801811223344');
+        pm.expect(pharmacy.area).to.eql('Dhanmondi');
+        pm.expect(pharmacy.district).to.eql('Dhaka');
+        pm.expect(pharmacy.drugLicenseNo).to.eql('DL-12345');
+        pm.expect(pharmacy.availableDays).to.eql(['sat', 'sun', 'mon', 'tue', 'wed', 'thu']);
+        pm.expect(pharmacy.availableFrom).to.eql('09:00');
+        pm.expect(pharmacy.availableTo).to.eql('22:00');
+        pm.expect(pharmacy.homeDelivery).to.eql(true);
+        pm.expect(pharmacy.paymentMethods).to.have.members(['cash', 'bkash']);
+      });
+      pm.test('fills the fields that were left out with empty values', () => {
+        pm.expect(pharmacy.email).to.eql('');
+        pm.expect(pharmacy.tradeLicenseNo).to.eql('');
+        pm.expect(pharmacy.notes).to.eql('');
+        pm.expect(pharmacy.photoUrl).to.eql(null);
+      });
+      pm.test('starts as ongoing, with "Form submitted" in the history', () => {
+        pm.expect(pharmacy.status).to.eql('ongoing');
+        pm.expect(pharmacy.history).to.be.an('array').with.lengthOf(1);
+        pm.expect(pharmacy.history[0].note).to.eql('Form submitted');
+      });
+      if (pharmacy.id) pm.collectionVariables.set('pharmacyId', pharmacy.id);

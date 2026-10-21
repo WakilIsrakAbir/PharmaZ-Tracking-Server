@@ -1,0 +1,20 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/users'
+order: 4000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data;
+      pm.test('returns a list of users', () => pm.expect(data).to.be.an('array').that.is.not.empty);
+      pm.test('includes the new teammate', () => {
+        pm.expect(data.map((user) => user.id)).to.include(pm.collectionVariables.get('newUserId'));
+      });
+      pm.test('lists active accounts before deactivated ones', () => {
+        const firstInactive = data.findIndex((user) => !user.isActive);
+        if (firstInactive !== -1) {
+          pm.expect(data.slice(firstInactive).every((user) => !user.isActive)).to.be.true;
+        }
+      });

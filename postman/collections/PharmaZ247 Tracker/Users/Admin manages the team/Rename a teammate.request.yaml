@@ -1,0 +1,31 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/users/:id'
+order: 5000
+pathVariables:
+  - key: id
+    value: '{{newUserId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "QA Marketer Renamed"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data || {};
+      pm.test('returns the renamed teammate', () => {
+        pm.expect(data.id).to.eql(pm.collectionVariables.get('newUserId'));
+        pm.expect(data.name).to.eql('QA Marketer Renamed');
+      });
+      pm.test('leaves other fields alone', () => {
+        pm.expect(data.role).to.eql('marketing');
+        pm.expect(data.isActive).to.eql(true);
+        pm.expect(data.mustChangePassword).to.eql(true);
+      });
