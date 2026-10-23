@@ -1,0 +1,9 @@
+# Not needed on Vercel: local photos, secrets, the API tests, the local scripts and the docs.
+uploads
+.env
+.env.*
+postman
+scripts
+PLAN.md
+TASKS.md
+openapi.yaml

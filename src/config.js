@@ -36,8 +36,10 @@ export const env = {
   isProduction: result.data.NODE_ENV === 'production',
 };
 
-// Doctor and pharmacy photos are saved here (git-ignored).
-export const UPLOADS_DIR = env.UPLOADS_DIR ?? fileURLToPath(new URL('../uploads', import.meta.url));
+// Doctor and pharmacy photos are saved here (git-ignored). On Vercel only /tmp can be written to,
+// and it is wiped when the function restarts, so photos there don't last (see README, "Going live").
+const defaultUploadsDir = process.env.VERCEL ? '/tmp/uploads' : fileURLToPath(new URL('../uploads', import.meta.url));
+export const UPLOADS_DIR = env.UPLOADS_DIR ?? defaultUploadsDir;
 
 // The database connection as requests see it. Until it is ready, the API answers every request
 // with a 503 and this reason (requireDatabase in server.js), so the web app can say what's wrong.

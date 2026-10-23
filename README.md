@@ -12,12 +12,15 @@ The web app is in **[PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/
 
 ```text
 src/
-├── server.js       START HERE: middleware and every route on one screen
+├── app.js          START HERE: middleware and every route on one screen
+├── server.js       starts the API on your computer or a normal host (npm start)
 ├── config.js       settings + database connection
 ├── utils.js        passwords, sign-in sessions, phone numbers, validation rules
 ├── models/         User, Doctor, Pharmacy (+ the shared visit, status and steps fields)
 ├── routes/         auth, users, records (doctors & pharmacies), calendar
 └── middleware/     sign-in checks, photo uploads, errors
+api/index.js        starts the API on Vercel (see "Going live")
+vercel.json         tells Vercel to send every request to api/index.js
 scripts/            local database, create the first admin, API tests
 postman/            the API tests (a Postman collection)
 openapi.yaml        the API contract
@@ -48,3 +51,33 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 - The admin password is stored as a bcrypt hash, never as plain text.
 - **Working offline:** set `MONGODB_URI=mongodb://127.0.0.1:27017/pharmaz-tracker`. `npm run db` then starts a local MongoDB with nothing to install, keeping its data in `.data/db`.
 - Photos are saved in `uploads/`, which git ignores.
+
+## Going live on Vercel
+
+Two Vercel projects, one per repository. Put the API live first, because the web app needs its address.
+
+**1. The API (this repository)**
+
+1. In Vercel: **Add New → Project**, import `PharmaZ-Tracking-Server`. Framework preset: **Other**. Leave the build settings empty.
+2. **Environment Variables**, before the first deploy:
+   - `MONGODB_URI`: the Atlas connection string. Use a different database name than your development one, for example `/pharmaz-tracker-live`, so testing never touches live data.
+   - `JWT_SECRET`: a new random string, not the one in your local `.env` (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`).
+   - `CLIENT_ORIGIN`: the web app's address, once you know it (step 2). Until then any value, e.g. `https://example.com`.
+   - `NODE_ENV`: `production`.
+3. **Deploy.** Then open `https://<your-api>.vercel.app/api/v1/health`: it should answer `{"ok":true}`. A 503 means Atlas is refusing the connection: see the next step.
+4. **Atlas → Network Access:** Vercel has no fixed IP address, so add `0.0.0.0/0` ("allow access from anywhere"). The connection is still encrypted and still needs the username and password, so make the database user's password long and random.
+5. **The first admin:** on your computer, run `npm run seed:admin` with `MONGODB_URI` in `.env` temporarily pointing at the live database name, and the `SEED_ADMIN_*` values filled in. Then put `.env` back and empty `SEED_ADMIN_PASSWORD`.
+
+**2. The web app ([PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Client))**
+
+1. **Add New → Project**, import `PharmaZ-Tracking-Client`. The preset is detected as Next.js.
+2. **Environment Variables:** `API_URL` = `https://<your-api>.vercel.app` (no trailing slash). The web app forwards every `/api/*` request there, so the browser only ever talks to the web app's own address, and the sign-in cookie just works.
+3. **Deploy**, then open the web app and sign in with the admin account.
+4. Back in the API project, set `CLIENT_ORIGIN` to the web app's address and **Redeploy** it.
+
+**What to know about Vercel**
+
+- Each push to `main` deploys again by itself, in both projects.
+- **Photos don't last on Vercel.** The API runs as a serverless function, where only `/tmp` can be written to and it's wiped whenever the function restarts (and every instance has its own `/tmp`). Uploading works, but the photo disappears later. To keep photos, store them in a file service instead of on disk: Vercel Blob or Cloudinary (a change in `middleware/upload.js` and `utils.js`), or run the API on a host with a disk (Railway with a volume, or a VPS) using `npm start`.
+- Settings come from the project's Environment Variables; `.env` is never uploaded. Changing a variable needs a redeploy.
+- Logs: the project's **Logs** tab shows what `console.log` and `console.error` printed, including "MongoDB connected" or why it couldn't.
