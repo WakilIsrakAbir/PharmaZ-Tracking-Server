@@ -1,0 +1,23 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/doctors/{{doctorId}}/assignees'
+order: 3500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userIds": ["{{otherUserId}}", "000000000000000000000000"]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      const error = pm.response.json().error || {};
+      pm.test('VALIDATION_ERROR, naming the field', () => {
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields && error.fields.userIds).to.be.a('string');
+      });

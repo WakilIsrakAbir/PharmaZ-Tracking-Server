@@ -15,5 +15,5 @@ scripts:
       });
       pm.test('shows nothing, and counts nothing, for someone who has submitted nothing', () => {
         pm.expect(data).to.eql([]);
-        pm.expect(meta.counts).to.eql({ all: 0, ongoing: 0, setup: 0, implementation: 0 });
+        pm.expect(meta.counts).to.eql({ all: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 });
       });

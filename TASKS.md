@@ -2,7 +2,7 @@
 
 What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is ticked only when the task is built **and** tested.
 
-**Status (21 Oct 2026):** sign-in, team accounts, the doctor and pharmacy forms, the dashboard (calendar + details panel at `/`), and the lists all work and are tested. Version 5 added "Submitted by", own-forms-only for marketing users, and implementation steps. **Next:** your decisions in PLAN.md section 8, then going live.
+**Status (23 Oct 2026):** the app is live on Vercel. Version 6 added the Support status, assigning teammates to a form (with an email that carries the whole form), and photos stored in the database. **Next:** email settings on Vercel, and the remaining items under "For you".
 
 ---
 
@@ -18,7 +18,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 ### Forms (filled in by the marketing team)
 - [x] Doctor form: paper fields 1–15 in the same order and numbering, with a photo
 - [x] Pharmacy form: 13 draft fields, with a photo
-- [x] Visit date + time and status (Ongoing / Setup / Implementation) on every form, plus notes
+- [x] Visit date + time and status (Ongoing / Setup / Implementation / Support) on every form, plus notes
 - [x] Field-by-field error messages; edit a submitted form; admins can delete
 
 ### Dashboard: calendar + details (home page, `/`)
@@ -45,6 +45,15 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Implementation steps: a checklist with a progress bar, ticked off over several visits; the badge shows "Implementation · 2/4" and each history entry keeps the progress
 - [x] API contract (v3.0.0) and Postman tests updated; checked in Edge on desktop and phone
 
+### Version 6 (23 Oct 2026)
+- [x] **Support** status after Implementation (violet): status picker, form, list tabs, calendar, badges, API contract and tests
+- [x] **Assigned to** in the Status card; admins **Assign** teammates from a list (search by name or email); the history records "Assigned to …" / "No longer assigned: …"
+- [x] Assigned people see and can update the form (lists, calendar, details, photos), enforced by the API; the lists and the day list say "by Wakil · with Rafi"
+- [x] **Email** to each newly assigned person with the whole form and an "Open in the tracker" button, over SMTP (`SMTP_*` in `.env`); without settings the API says no email was sent, and the admin sees that after saving
+- [x] Photos stored in MongoDB as WebP (shrunk to 1200px), so they work on Vercel; initials show when a photo can't load
+- [x] API on Vercel (`api/index.js`, `vercel.json`); the web app on Vercel with `.env.production`
+- [x] 87 Postman tests (463 checks) passing; API contract updated and linted
+
 ### Screen polish (21 Oct 2026)
 - [x] Large screens: a hamburger next to the logo folds the sidebar into icons (more room for the page), and opens it again; each browser remembers the choice
 - [x] The "← back" link on form pages stays fixed at the top while the page scrolls
@@ -54,7 +63,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] 74 Postman tests (399 checks) passing: `npm run test:api` uses a throwaway API and database
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (87 tests, 463 checks as of 23 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---
@@ -66,19 +75,20 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 
 ### Your decisions (PLAN.md section 8)
 - [ ] Pharmacy form fields (send the paper form if there is one)
-- [ ] Status order, and whether a final status (Live / Dropped) is needed
-- [ ] When someone leaves, can an admin move their forms to another marketer?
+- [ ] Is a *Dropped* status (talks ended) needed, besides the new *Support*?
+- [x] When someone leaves, an admin assigns their forms to someone else (23 Oct 2026)
 
 ### Going live
 - [x] MongoDB Atlas connected (TLS); admin account created there as a bcrypt hash; the plain admin password removed from `.env` (21 Oct 2026)
 - [ ] In Atlas: change the database user's password (it was shared in a screenshot) and give the app its own user with read/write on `pharmaz-tracker` only
 - [x] Code on GitHub: [PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Client) (web app) and [PharmaZ-Tracking-Server](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Server) (API, tests and these docs) (21 Oct 2026)
-- [ ] Cloudinary for photos
-- [ ] Deploy the web app (Vercel) and the API (Render or Railway); set the env vars
+- [x] Photos in the database as WebP (23 Oct 2026)
+- [x] The API and the web app deployed on Vercel (23 Oct 2026)
+- [ ] Email: add `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` (and `APP_URL`) to the API's Vercel project, then redeploy
 - [ ] Change the admin password; add the real team
 
 ### Nice to have
 - [ ] Print / PDF view in the paper-form layout
 - [ ] Counts per status on the dashboard
-- [ ] Reminders the day before a visit
+- [ ] Reminders the day before a visit (by email, now that email exists)
 - [ ] Export to Excel

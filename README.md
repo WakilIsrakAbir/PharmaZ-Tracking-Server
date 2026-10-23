@@ -16,6 +16,7 @@ src/
 ├── server.js       starts the API on your computer or a normal host (npm start)
 ├── config.js       settings + database connection
 ├── utils.js        passwords, sign-in sessions, phone numbers, validation rules
+├── email.js        the assignment email (SMTP)
 ├── models/         User, Doctor, Pharmacy, Photo (+ the shared visit, status and steps fields)
 ├── routes/         auth, users, records (doctors & pharmacies), calendar
 └── middleware/     sign-in checks, photo uploads, errors
@@ -40,7 +41,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 |---|---|
 | `npm run dev` | Starts the API on http://localhost:4000 with nodemon, which restarts it when a file in `src/` or `.env` changes. An old copy still using port 4000 is stopped first. If MongoDB can't be reached, it says why and keeps trying |
 | `npm start` | Starts the API without watching files (for hosting) |
-| `npm run test:api` | Runs the 74 Postman API tests against a throwaway API and database (your data is never touched) |
+| `npm run test:api` | Runs the 87 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
 | `npm run seed:admin` | Creates the first admin from `.env` (safe to run twice) |
 | `npm run db` | Starts a local MongoDB, only when `MONGODB_URI` points at this computer |
 
@@ -51,6 +52,16 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 - The admin password is stored as a bcrypt hash, never as plain text.
 - **Working offline:** set `MONGODB_URI=mongodb://127.0.0.1:27017/pharmaz-tracker`. `npm run db` then starts a local MongoDB with nothing to install, keeping its data in `.data/db`.
 - Photos live in the database too (the `photos` collection), as WebP shrunk to at most 1200px, roughly 50–150 KB each. So they work on any host, and a backup of the database includes them.
+
+## Email
+
+When an admin assigns teammates to a form, each newly assigned person gets an email with the whole form (`src/email.js`). It goes out over SMTP, so any mail account works; the settings are in `.env.example`:
+
+- **Gmail or Google Workspace:** `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER` = the address, `SMTP_PASS` = an **App Password** (Google Account → Security → 2-Step Verification → App passwords; never the real password), `EMAIL_FROM="PharmaZ247 Tracker <the address>"`. Gmail allows about 500 emails a day, Workspace 2,000.
+- **Brevo** (free, 300 a day): `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, and the login from Brevo → SMTP & API.
+- `APP_URL` is the web app's address, for the "Open in the tracker" button. It defaults to `CLIENT_ORIGIN`.
+
+Without these settings the API sends nothing: assigning still works, and the admin is told that no email went out. Replies go to the admin who assigned (`Reply-To`). On Vercel, add the same settings to the project's Environment Variables and redeploy.
 
 ## Going live on Vercel
 
@@ -64,6 +75,7 @@ Two Vercel projects, one per repository. Put the API live first, because the web
    - `JWT_SECRET`: a new random string, not the one in your local `.env` (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`).
    - `CLIENT_ORIGIN`: the web app's address, once you know it (step 2). Until then any value, e.g. `https://example.com`.
    - `NODE_ENV`: `production`.
+   - For email (optional, can be added later): `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` and `APP_URL` (the web app's address). See "Email" below.
 3. **Deploy.** Then open `https://<your-api>.vercel.app/api/v1/health`: it should answer `{"ok":true}`. A 503 means Atlas is refusing the connection: see the next step.
 4. **Atlas → Network Access:** Vercel has no fixed IP address, so add `0.0.0.0/0` ("allow access from anywhere"). The connection is still encrypted and still needs the username and password, so make the database user's password long and random.
 5. **The first admin:** on your computer, run `npm run seed:admin` with `MONGODB_URI` in `.env` temporarily pointing at the live database name, and the `SEED_ADMIN_*` values filled in. Then put `.env` back and empty `SEED_ADMIN_PASSWORD`.

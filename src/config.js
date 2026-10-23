@@ -8,6 +8,9 @@ import { z } from 'zod';
 const ENV_FILE = fileURLToPath(new URL('../.env', import.meta.url));
 if (process.env.NODE_ENV !== 'test' && existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
+// An optional setting: an empty value counts as "not given".
+const optional = (schema) => z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
 // Every setting the API needs, checked once at startup.
 // The full list with explanations is in server/.env.example.
 const schema = z.object({
@@ -17,6 +20,13 @@ const schema = z.object({
   JWT_SECRET: z.string({ error: 'is missing' }).min(32, 'must be at least 32 characters long'),
   SESSION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
   CLIENT_ORIGIN: z.url({ error: 'must be a full URL, like http://localhost:3000' }).default('http://localhost:3000'),
+  // Email (optional). Without these, the API works but sends no email; see email.js.
+  SMTP_HOST: optional(z.string()),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: optional(z.string()),
+  SMTP_PASS: optional(z.string()),
+  EMAIL_FROM: optional(z.string()),
+  APP_URL: optional(z.url({ error: 'must be a full URL, like https://tracker.example.com' })),
 });
 
 const result = schema.safeParse(process.env);
@@ -33,6 +43,10 @@ if (!result.success) {
 export const env = {
   ...result.data,
   isProduction: result.data.NODE_ENV === 'production',
+  // Where the web app lives, for links in emails. Usually the same as CLIENT_ORIGIN.
+  appUrl: result.data.APP_URL ?? result.data.CLIENT_ORIGIN,
+  // Email is on only when every SMTP setting is there.
+  emailEnabled: Boolean(result.data.SMTP_HOST && result.data.SMTP_USER && result.data.SMTP_PASS && result.data.EMAIL_FROM),
 };
 
 // The database connection as requests see it. Until it is ready, the API answers every request

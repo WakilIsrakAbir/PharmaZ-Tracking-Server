@@ -1,0 +1,15 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors/{{doctorId}}'
+order: 6000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK, because the doctor is assigned to them', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('it is the field marketer\'s doctor, assigned to the second marketer', () => {
+        pm.expect(doctor.id).to.eql(pm.collectionVariables.get('doctorId'));
+        pm.expect(doctor.createdBy && doctor.createdBy.id).to.eql(pm.collectionVariables.get('fieldUserId'));
+        pm.expect((doctor.assignedTo || []).map((person) => person.id)).to.include(pm.collectionVariables.get('otherUserId'));
+      });

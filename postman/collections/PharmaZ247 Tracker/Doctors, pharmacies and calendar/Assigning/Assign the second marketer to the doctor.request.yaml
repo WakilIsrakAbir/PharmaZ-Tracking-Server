@@ -1,0 +1,35 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/doctors/{{doctorId}}/assignees'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userIds": ["{{otherUserId}}"]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: doctor = {}, meta = {} } = pm.response.json();
+      pm.test('the second marketer is assigned, with name, phone and email', () => {
+        pm.expect(doctor.assignedTo).to.be.an('array').with.lengthOf(1);
+        const person = doctor.assignedTo[0];
+        pm.expect(person.id).to.eql(pm.collectionVariables.get('otherUserId'));
+        pm.expect(person.name).to.eql('Second QA Marketer');
+        pm.expect(person.email).to.eql(pm.collectionVariables.get('otherUserEmail'));
+        pm.expect(person.phone).to.be.a('string');
+      });
+      pm.test('the history remembers who was assigned', () => {
+        const last = doctor.history[doctor.history.length - 1] || {};
+        pm.expect(last.note).to.eql('Assigned to Second QA Marketer');
+        pm.expect(last.status).to.eql(doctor.status);
+      });
+      pm.test('says that no email was sent, because SMTP is not set up in the tests', () => {
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

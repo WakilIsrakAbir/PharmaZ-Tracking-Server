@@ -22,14 +22,16 @@ info:
     **Roles.** `admin` can do everything. `marketing` can do everything except manage team accounts
     and delete doctors or pharmacies.
 
-    **Who sees what.** A marketing user only sees the records they submitted (`createdBy`): in the
-    lists, the calendar, single records, status updates and photos. Anyone else's record answers
-    `404`, exactly as if it didn't exist. Admins see every record.
+    **Who sees what.** A marketing user only sees the records they submitted (`createdBy`) or were
+    assigned to (`assignedTo`): in the lists, the calendar, single records, status updates and photos.
+    Anyone else's record answers `404`, exactly as if it didn't exist. Admins see every record, and
+    only admins assign people (`PUT /doctors/{id}/assignees`); each newly assigned person gets an
+    email with the whole form, when the API has email settings.
 
     **Records.** A record is one filled-in onboarding form: a doctor (`/doctors`) or a pharmacy
     (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
     the calendar, a `status`, `createdBy` (the name and phone number of the person who submitted it),
-    `implementationSteps` (a checklist for an implementation that takes several visits), and a
+    `assignedTo` (the teammates an admin assigned), `implementationSteps` (a checklist for an implementation that takes several visits), and a
     `history` of every status and visit-date change.
 
     **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears only
@@ -675,6 +677,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /doctors/{id}/assignees:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    put:
+      tags: [Doctors]
+      operationId: assignDoctor
+      summary: Set who is assigned (admin)
+      description: |
+        The "Assign" button in the details panel. Replaces the list of assigned teammates with
+        `userIds` (active accounts only). Assigned people see the doctor and can update it, like the
+        person who submitted it. When the list changes, `history` gets an entry such as
+        "Assigned to Rafi Hasan" or "No longer assigned: Sumi Akter".
+
+        Each newly assigned person is emailed the whole form, when the API has SMTP settings.
+        `meta.email` says whether that worked; the assignment is saved either way.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssigneesRequest'
+            example:
+              userIds: ['6717a3f9c2b1e45d8a0f1a03']
+      responses:
+        '200':
+          description: The doctor, with the new assignees and history entry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DoctorResponse'
+                  - type: object
+                    required: [meta]
+                    properties:
+                      meta:
+                        type: object
+                        required: [email]
+                        properties:
+                          email:
+                            $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /pharmacies:
     get:
       tags: [Pharmacies]
@@ -823,6 +876,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /pharmacies/{id}/assignees:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    put:
+      tags: [Pharmacys]
+      operationId: assignPharmacy
+      summary: Set who is assigned (admin)
+      description: |
+        The "Assign" button in the details panel. Replaces the list of assigned teammates with
+        `userIds` (active accounts only). Assigned people see the pharmacy and can update it, like the
+        person who submitted it. When the list changes, `history` gets an entry such as
+        "Assigned to Rafi Hasan" or "No longer assigned: Sumi Akter".
+
+        Each newly assigned person is emailed the whole form, when the API has SMTP settings.
+        `meta.email` says whether that worked; the assignment is saved either way.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssigneesRequest'
+            example:
+              userIds: ['6717a3f9c2b1e45d8a0f1a03']
+      responses:
+        '200':
+          description: The pharmacy, with the new assignees and history entry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PharmacyResponse'
+                  - type: object
+                    required: [meta]
+                    properties:
+                      meta:
+                        type: object
+                        required: [email]
+                        properties:
+                          email:
+                            $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /calendar:
     get:
       tags: [Calendar]
@@ -831,8 +935,8 @@ paths:
       description: |
         Doctors and pharmacies whose `visitDate` is on or after `from` and before `to`, soonest
         first. The web app asks for the weeks it is showing, for example a whole month grid.
-        Marketing users get only their own visits; admins get the whole team's, with `createdBy`
-        saying whose visit it is.
+        Marketing users get the visits they submitted or were assigned to; admins get the whole
+        team's. `createdBy` says whose visit it is and `assignedTo` who else is on it.
 
         `place` is the line the calendar shows under the name: the doctor's chamber name (or the
         address when there is none), or the pharmacy's name.
@@ -1049,7 +1153,7 @@ components:
                   message: Please check the highlighted fields.
                   fields:
                     phone: Phone number should look like +880 1711-234567.
-                    status: Status must be ongoing, setup or implementation.
+                    status: Status must be Ongoing, Setup, Implementation or Support.
             invalidJson:
               summary: The body is not valid JSON
               value:
@@ -1240,12 +1344,13 @@ components:
         - `marketing`: fills in and updates doctor and pharmacy forms
     OnboardingStatus:
       type: string
-      enum: [ongoing, setup, implementation]
+      enum: [ongoing, setup, implementation, support]
       description: |
         Where a doctor or pharmacy is in onboarding. New records start as `ongoing`.
         - `ongoing`: talks have started and the form is being filled in
         - `setup`: the form is complete; profile, slots and fees are being set up in PharmaZ247
         - `implementation`: going live, with training and the first bookings
+        - `support`: live; the team now visits to support them
     Weekday:
       type: string
       enum: [sat, sun, mon, tue, wed, thu, fri]
@@ -1285,6 +1390,55 @@ components:
         - id: '6717a3f9c2b1e45d8a0f1a02'
           name: Rafi Hasan
           phone: '+8801711234567'
+    Assignee:
+      type: object
+      description: A teammate assigned to a form.
+      required: [id, name, phone, email]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        name:
+          type: string
+        phone:
+          anyOf:
+            - $ref: '#/components/schemas/Phone'
+            - type: 'null'
+        email:
+          type: string
+          format: email
+      examples:
+        - id: '6717a3f9c2b1e45d8a0f1a03'
+          name: Sumi Akter
+          phone: '+8801812345678'
+          email: sumi@pharmaz247.com
+    AssigneesRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          description: The whole list of assigned teammates (active accounts). An empty list unassigns everyone.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ObjectId'
+    EmailReport:
+      type: object
+      description: What happened to the assignment emails.
+      required: [configured, sent, failed]
+      properties:
+        configured:
+          type: boolean
+          description: '`false` when the API has no SMTP settings, so no email is ever sent.'
+        sent:
+          type: array
+          description: Names of the newly assigned people who got the email.
+          items:
+            type: string
+        failed:
+          type: array
+          description: Names of the newly assigned people whose email could not be sent (they are still assigned).
+          items:
+            type: string
     PhotoUrl:
       type: [string, 'null']
       pattern: '^/api/v1/uploads/[^/]+$'
@@ -1293,7 +1447,7 @@ components:
     StatusCounts:
       type: object
       description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
-      required: [all, ongoing, setup, implementation]
+      required: [all, ongoing, setup, implementation, support]
       properties:
         all:
           type: integer
@@ -1305,6 +1459,9 @@ components:
           type: integer
           minimum: 0
         implementation:
+          type: integer
+          minimum: 0
+        support:
           type: integer
           minimum: 0
 
@@ -1479,7 +1636,7 @@ components:
           $ref: '#/components/schemas/DateTime'
         note:
           type: string
-          description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, or the note given with a status change (empty when none was given).'
+          description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, "Assigned to …" / "No longer assigned: …" when the assigned teammates changed, or the note given with a status change (empty when none was given).'
         steps:
           description: How far the implementation steps were at that moment. Set by status updates to `implementation` when there are steps; otherwise `null`.
           anyOf:
@@ -1542,7 +1699,7 @@ components:
     RecordBase:
       type: object
       description: The fields every record has.
-      required: [id, type, name, phone, email, address, visitDate, status, notes, photoUrl, implementationSteps, history, createdBy, createdAt, updatedAt]
+      required: [id, type, name, phone, email, address, visitDate, status, notes, photoUrl, implementationSteps, history, createdBy, assignedTo, createdAt, updatedAt]
       properties:
         id:
           $ref: '#/components/schemas/ObjectId'
@@ -1582,7 +1739,13 @@ components:
             $ref: '#/components/schemas/HistoryEntry'
         createdBy:
           $ref: '#/components/schemas/Submitter'
-          description: The marketing person who submitted the form, with their phone number. Only they and the admins can see the form.
+          description: The marketing person who submitted the form, with their phone number. They, the assigned teammates and the admins can see the form.
+        assignedTo:
+          type: array
+          description: Teammates an admin assigned to this form (see `PUT /doctors/{id}/assignees`). They see and can update it, like the submitter.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Assignee'
         createdAt:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
@@ -1835,7 +1998,7 @@ components:
     CalendarItem:
       type: object
       description: One visit on the calendar.
-      required: [id, type, name, place, address, status, steps, visitDate, phone, photoUrl, createdBy]
+      required: [id, type, name, place, address, status, steps, visitDate, phone, photoUrl, createdBy, assignedTo]
       properties:
         id:
           $ref: '#/components/schemas/ObjectId'
@@ -1866,6 +2029,11 @@ components:
           anyOf:
             - $ref: '#/components/schemas/UserRef'
             - type: 'null'
+        assignedTo:
+          type: array
+          description: The teammates assigned to this form.
+          items:
+            $ref: '#/components/schemas/UserRef'
     CalendarResponse:
       type: object
       required: [data]
@@ -2149,6 +2317,7 @@ components:
             ongoing: 5
             setup: 4
             implementation: 3
+            support: 0
     PharmacyRahmanForm:
       summary: A sample pharmacy form
       value:
@@ -2254,6 +2423,7 @@ components:
             ongoing: 1
             setup: 0
             implementation: 0
+            support: 0
     CalendarTomorrow:
       summary: Two visits tomorrow, soonest first
       value:

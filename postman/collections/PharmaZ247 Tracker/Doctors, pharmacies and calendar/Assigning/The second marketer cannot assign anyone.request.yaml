@@ -1,0 +1,19 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/doctors/{{doctorId}}/assignees'
+order: 7500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userIds": []
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 for a marketer: only admins assign', () => pm.response.to.have.status(403));
+      pm.test('FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));

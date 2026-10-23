@@ -1,0 +1,17 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors'
+order: 6500
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('lists the assigned doctor, and only that one', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.eql([pm.collectionVariables.get('doctorId')]);
+      });
+      pm.test('counts it under its status', () => {
+        pm.expect(meta.counts.all).to.eql(1);
+        pm.expect(meta.counts[data[0] ? data[0].status : '']).to.eql(1);
+      });

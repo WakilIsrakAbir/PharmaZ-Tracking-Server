@@ -8,14 +8,15 @@
 
 ## 1. What it does
 
-1. **A marketing team member fills in a form.** The doctor form has the same 15 numbered fields as the paper "Doctor Onboarding Form". The pharmacy form is a 13-field draft. Each form also gets a **visit date and time** and a **status**: *Ongoing → Setup → Implementation*. The form is saved under the person's **name and phone number** from their account, so there is nothing extra to type.
+1. **A marketing team member fills in a form.** The doctor form has the same 15 numbered fields as the paper "Doctor Onboarding Form". The pharmacy form is a 13-field draft. Each form also gets a **visit date and time** and a **status**: *Ongoing → Setup → Implementation → Support*. The form is saved under the person's **name and phone number** from their account, so there is nothing extra to type.
 2. **The form appears on the calendar** on its visit date. The home page, the **Dashboard** (`/`), is the month calendar on the left and a details panel on the right. Its **New doctor form** and **New pharmacy form** buttons open a new form for the picked day.
 3. **Click a visit** and the details open beside the calendar, in two sections:
    - **Details** (read only): the person or pharmacy, the place (with Google Maps), the phone (Call / WhatsApp) and the notes;
-   - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, the history of every change (who made it and when), and under that, **Submitted by**: the name and phone number of the person who submitted the form.
+   - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, **Assigned to**: the teammates working on this form (admins add or remove them with **Assign**), then the history of every change (who made it and when), and under that, **Submitted by**: the name and phone number of the person who submitted the form.
    - All the numbered form fields are on the form's full page (`/doctors/:id`) and in **Edit form**.
 4. **Lists:** all doctors and all pharmacies, with status tabs and search, each opening a full page.
-5. **Who sees what:** a marketing person sees only the forms they submitted: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it.
+5. **Who sees what:** a marketing person sees the forms they submitted and the forms assigned to them: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it and who is assigned.
+7. **Assigning:** an admin assigns one or more teammates to a form (**Assign** in the Status card). Each newly assigned person gets an **email with the whole form** (every numbered field, the status, the visit, the address with a map link, the notes, the steps, who submitted it, and a link to open it in the tracker). The history records "Assigned to …" / "No longer assigned: …". This is also how a form moves to someone else when a person leaves.
 6. **Accounts:** only the admin creates accounts (Team page), with a name, email and phone number (all three required). There is no sign-up. New people get a temporary password and choose their own at first sign-in.
 
 ## 2. Pages
@@ -55,6 +56,7 @@ To add or change a field, edit three places: the model in this repo (`src/models
 | **Ongoing** | Talks have started | Blue |
 | **Setup** | Profile and slots being set up | Amber |
 | **Implementation** | Going live in PharmaZ247 | Green |
+| **Support** | Live; the team now visits to support them | Violet |
 
 Every status change (from the details panel, or by editing the form) adds an entry to the record's **history**: the status, the visit date, an optional note, who made the change and when.
 
@@ -80,12 +82,15 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | GET · POST | `/doctors` | signed in | List (`?search=&status=`, with counts) / submit a form |
 | GET · PUT | `/doctors/:id` | signed in | One form / save an edited form |
 | PATCH | `/doctors/:id/status` | signed in | New status (+ date, note and implementation steps) → history |
+| PUT | `/doctors/:id/assignees` | admin | Who is assigned (the whole list) → history; newly assigned people are emailed the form |
 | DELETE | `/doctors/:id` | admin | Delete the form, its photo and its history |
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
 | GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |
-| GET | `/uploads/:file` | signed in | Photos |
+| GET | `/uploads/:id` | signed in | Photos (stored in the database as WebP) |
 
-**Who sees what:** for a marketing user, the lists, the calendar, single forms, status updates and photos only include the forms they submitted. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy`: the name and phone number of the person who submitted it.
+**Who sees what:** for a marketing user, the lists, the calendar, single forms, status updates and photos only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates).
+
+**Email:** over SMTP (Gmail, Google Workspace or Brevo; the `SMTP_*` settings in `.env` decide). Without those settings the API sends nothing and says so in its answer (`meta.email.configured: false`), so everything else keeps working.
 
 Forms are sent either as JSON, or as `multipart/form-data` with the fields as JSON in `data` and an optional `photo` (JPG, PNG or WEBP, up to 2 MB). Errors always look like `{ error: { code, message, fields } }`, and the messages are written to be shown to people as they are.
 
@@ -116,12 +121,13 @@ Forms are sent either as JSON, or as `multipart/form-data` with the fields as JS
 ## 8. Still to decide
 
 1. **Pharmacy form fields.** Please share the paper pharmacy form, if there is one.
-2. **Status:** is *Ongoing → Setup → Implementation* the right order? Do you want a final status such as *Live* or *Dropped*?
-3. **When someone leaves:** should an admin be able to move their forms to another marketing person? (Today a form always stays with the person who submitted it.)
+2. **Status:** *Support* was added after *Implementation* (23 Oct 2026). Is a *Dropped* status (talks ended) needed too?
+3. ~~When someone leaves~~: solved by assigning (23 Oct 2026): an admin assigns the form to someone else.
 
 ## 9. Next steps
 
-- **Going live:** MongoDB Atlas for the database, and Cloudinary for photos (the server's disk is wiped on most hosts). Then deploy the web app (Vercel) and the API (Render or Railway).
+- **Going live:** done on Vercel (23 Oct 2026): the API at pharma-z-tracking-server.vercel.app, the web app deployed from the client repository. Photos live in MongoDB as WebP. See the README, "Going live on Vercel".
+- **Email:** set the `SMTP_*` settings on the API's Vercel project so assignment emails go out (see the README).
 - **Nice to have:**
   - a print / PDF view in the paper-form layout;
   - counts per status on the dashboard;

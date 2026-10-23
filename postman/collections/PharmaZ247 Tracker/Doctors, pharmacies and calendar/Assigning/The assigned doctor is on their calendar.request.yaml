@@ -1,0 +1,24 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTo}}'
+order: 7000
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTo}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const doctor = items.find((item) => item.id === pm.collectionVariables.get('doctorId'));
+      pm.test('shows the assigned doctor, and says who is assigned', () => {
+        pm.expect(doctor, 'doctor').to.be.an('object');
+        pm.expect((doctor.assignedTo || []).map((person) => person.id)).to.eql([pm.collectionVariables.get('otherUserId')]);
+        pm.expect(doctor.assignedTo[0].name).to.eql('Second QA Marketer');
+      });
+      pm.test("still leaves out the field marketer's pharmacy, which isn't assigned to them", () => {
+        pm.expect(items.map((item) => item.id)).to.not.include(pm.collectionVariables.get('pharmacyId'));
+      });

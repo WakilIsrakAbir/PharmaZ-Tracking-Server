@@ -10,7 +10,8 @@ import { Photo } from './models/Photo.js';
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
 // ---------------------------------------------------------------------------
 export const ROLES = ['admin', 'marketing'];
-export const STATUSES = ['ongoing', 'setup', 'implementation'];   // the onboarding steps, in order
+export const STATUSES = ['ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
+export const STATUS_MESSAGE = 'Status must be Ongoing, Setup, Implementation or Support.';
 export const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 
 // ---------------------------------------------------------------------------

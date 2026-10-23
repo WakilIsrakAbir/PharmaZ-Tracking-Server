@@ -1,24 +1,27 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
+import { sendAssignmentEmails } from '../email.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { ApiError, validate } from '../middleware/errors.js';
 import { formWithPhoto } from '../middleware/upload.js';
-import { countSteps, visibleTo } from '../models/shared.js';
-import { STATUSES, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
+import { User } from '../models/User.js';
+import { allOf, countSteps, visibleTo } from '../models/shared.js';
+import { STATUSES, STATUS_MESSAGE, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
 
-// The endpoints for one kind of onboarding record. Used twice in server.js:
+// The endpoints for one kind of onboarding record. Used twice in app.js:
 // /api/v1/doctors (Doctor model) and /api/v1/pharmacies (Pharmacy model).
 //
-//   GET    /             list (?search= ?status=), with counts per status
-//   POST   /             submit a new form (JSON, or multipart with a photo)
-//   GET    /:id          one record
-//   PUT    /:id          save the edited form
-//   PATCH  /:id/status   the status update: new status, visit date, note, implementation steps
-//   DELETE /:id          admins only
+//   GET    /                list (?search= ?status=), with counts per status
+//   POST   /                submit a new form (JSON, or multipart with a photo)
+//   GET    /:id             one record
+//   PUT    /:id             save the edited form
+//   PATCH  /:id/status      the status update: new status, visit date, note, implementation steps
+//   PUT    /:id/assignees   admins only: who is assigned to this record (newly assigned people get an email)
+//   DELETE /:id             admins only
 //
-// Marketing people only see and change the forms they submitted; admins see every form.
-// Anyone else's form answers 404, exactly as if it didn't exist.
+// Marketing people only see and change the forms they submitted or were assigned to; admins see
+// every form. Anyone else's form answers 404, exactly as if it didn't exist.
 
 const idParams = z.object({ id: objectId });
 
@@ -39,17 +42,24 @@ const stepsInput = z
   .max(20, 'Use 20 steps or fewer.');
 
 const statusBody = z.object({
-  status: z.enum(STATUSES, { error: 'Status must be Ongoing, Setup or Implementation.' }),
+  status: z.enum(STATUSES, { error: STATUS_MESSAGE }),
   visitDate: z.coerce.date({ error: 'Please pick a valid date.' }).optional(),
   note: optionalText(500),
   implementationSteps: stepsInput.optional(),
 });
 
+// The whole list of assigned teammates, sent each time (an empty list unassigns everyone).
+const assigneesBody = z.object({
+  userIds: z.array(objectId, { error: 'Please send the list of teammates.' }).max(20, 'Assign 20 people or fewer.'),
+});
+
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Who submitted the form (with their phone, so the team can call them) and who made each change.
+// Who submitted the form (with their phone, so the team can call them), who is assigned to it,
+// and who made each change.
 const PEOPLE = [
   { path: 'createdBy', select: 'name phone' },
+  { path: 'assignedTo', select: 'name phone email' },
   { path: 'history.by', select: 'name' },
 ];
 
@@ -76,14 +86,14 @@ export function recordRoutes(Model, input) {
 
   router.get('/', validate({ query: listQuery }), async (req, res) => {
     const { search, status } = req.valid.query;
-    const filter = { ...visibleTo(req.user), ...searchFilter(search) };
+    const filter = allOf(visibleTo(req.user), searchFilter(search));
 
     const [records, perStatus] = await Promise.all([
-      Model.find(status ? { ...filter, status } : filter).sort({ visitDate: -1 }).populate(PEOPLE),
+      Model.find(status ? allOf(filter, { status }) : filter).sort({ visitDate: -1 }).populate(PEOPLE),
       Model.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
-    const counts = { all: 0, ongoing: 0, setup: 0, implementation: 0 };
+    const counts = { all: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 };
     for (const { _id, count } of perStatus) {
       counts[_id] = count;
       counts.all += count;
@@ -140,6 +150,39 @@ export function recordRoutes(Model, input) {
     res.json({ data: await record.populate(PEOPLE) });
   });
 
+  // "Assign" in the details panel. The history remembers who was added and removed, and each
+  // newly assigned teammate gets an email with the whole form. The answer's `meta.email` says
+  // whether those emails went out, so the admin can be told when one didn't.
+  router.put('/:id/assignees', requireAdmin, validate({ params: idParams, body: assigneesBody }), async (req, res) => {
+    const record = await findRecord(req.valid.params.id, req.user);
+    const userIds = [...new Set(req.valid.body.userIds)];
+
+    const people = await User.find({ _id: { $in: userIds }, isActive: true }).select('name phone email');
+    if (people.length !== userIds.length) {
+      throw ApiError.validation({ userIds: 'One of those teammates does not exist or is deactivated.' });
+    }
+
+    const before = record.assignedTo.map(String);
+    const added = people.filter((person) => !before.includes(String(person._id)));
+    const removedIds = before.filter((id) => !userIds.includes(id));
+    const removed = removedIds.length ? await User.find({ _id: { $in: removedIds } }).select('name') : [];
+
+    record.assignedTo = userIds;
+    if (added.length || removed.length) {
+      const note = [
+        added.length && `Assigned to ${names(added)}`,
+        removed.length && `No longer assigned: ${names(removed)}`,
+      ]
+        .filter(Boolean)
+        .join('. ');
+      record.history.push({ status: record.status, visitDate: record.visitDate, note, by: req.user._id });
+    }
+    await record.save();
+
+    const email = await sendAssignmentEmails({ record, type: kind, assignees: added, assignedBy: req.user });
+    res.json({ data: await record.populate(PEOPLE), meta: { email } });
+  });
+
   router.delete('/:id', requireAdmin, validate({ params: idParams }), async (req, res) => {
     const record = await Model.findByIdAndDelete(req.valid.params.id);
     if (!record) throw new ApiError(404, `We couldn't find that ${kind}.`);
@@ -149,6 +192,9 @@ export function recordRoutes(Model, input) {
 
   return router;
 }
+
+// "Rafi Hasan, Sumi Akter"
+const names = (people) => people.map((person) => person.name).join(', ');
 
 // The new checklist replaces the old one. A step that was already done keeps the day it was
 // ticked off, a newly ticked step gets today, and an unticked step loses its date.

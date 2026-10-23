@@ -1,0 +1,27 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctor2Id}}/status'
+order: 17000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "support",
+      "note": "Live. First support visit booked."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('moves the doctor to Support, the status after going live', () => pm.expect(doctor.status).to.eql('support'));
+      pm.test('the history ends with the move to Support, without a step count', () => {
+        const last = doctor.history[doctor.history.length - 1] || {};
+        pm.expect(last.status).to.eql('support');
+        pm.expect(last.note).to.eql('Live. First support visit booked.');
+        pm.expect(last.steps).to.eql(null);
+      });
