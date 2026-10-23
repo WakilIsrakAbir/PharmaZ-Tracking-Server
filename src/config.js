@@ -17,7 +17,6 @@ const schema = z.object({
   JWT_SECRET: z.string({ error: 'is missing' }).min(32, 'must be at least 32 characters long'),
   SESSION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
   CLIENT_ORIGIN: z.url({ error: 'must be a full URL, like http://localhost:3000' }).default('http://localhost:3000'),
-  UPLOADS_DIR: z.string().optional(),
 });
 
 const result = schema.safeParse(process.env);
@@ -35,11 +34,6 @@ export const env = {
   ...result.data,
   isProduction: result.data.NODE_ENV === 'production',
 };
-
-// Doctor and pharmacy photos are saved here (git-ignored). On Vercel only /tmp can be written to,
-// and it is wiped when the function restarts, so photos there don't last (see README, "Going live").
-const defaultUploadsDir = process.env.VERCEL ? '/tmp/uploads' : fileURLToPath(new URL('../uploads', import.meta.url));
-export const UPLOADS_DIR = env.UPLOADS_DIR ?? defaultUploadsDir;
 
 // The database connection as requests see it. Until it is ready, the API answers every request
 // with a 503 and this reason (requireDatabase in server.js), so the web app can say what's wrong.

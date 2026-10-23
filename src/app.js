@@ -10,10 +10,10 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
-import { UPLOADS_DIR, connectDB, database, env } from './config.js';
+import { connectDB, database, env } from './config.js';
 import { requireAdmin, requireAuth } from './middleware/auth.js';
 import { ApiError, errorHandler, notFound } from './middleware/errors.js';
-import { requirePhotoAccess } from './middleware/upload.js';
+import { sendPhoto } from './middleware/upload.js';
 import { Doctor, doctorInput } from './models/Doctor.js';
 import { Pharmacy, pharmacyInput } from './models/Pharmacy.js';
 import authRoutes from './routes/auth.js';
@@ -22,9 +22,6 @@ import { recordRoutes } from './routes/records.js';
 import userRoutes from './routes/users.js';
 
 const app = express();
-
-// Photos need a sign-in, so only the viewer's own browser may keep a copy (for a week).
-const privateCache = (res) => res.setHeader('Cache-Control', 'private, max-age=604800');
 
 // 1. Middleware ------------------------------------------------------------
 app.set('trust proxy', 1);   // requests come through one proxy (the web app's /api rewrite or the host)
@@ -50,7 +47,7 @@ api.use('/users', requireAuth, requireAdmin, userRoutes);                   // t
 api.use('/doctors', requireAuth, recordRoutes(Doctor, doctorInput));        // doctor onboarding forms
 api.use('/pharmacies', requireAuth, recordRoutes(Pharmacy, pharmacyInput)); // pharmacy onboarding forms
 api.use('/calendar', requireAuth, calendarRoutes);                          // visits in a date range
-api.use('/uploads', requireAuth, requirePhotoAccess, express.static(UPLOADS_DIR, { cacheControl: false, setHeaders: privateCache })); // photos
+api.get('/uploads/:id', requireAuth, sendPhoto);                           // a record's photo
 
 app.use('/api/v1', api);
 

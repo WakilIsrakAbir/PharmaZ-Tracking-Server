@@ -32,7 +32,7 @@ const historyEntrySchema = new mongoose.Schema(
 );
 
 export const trackingFields = {
-  photo: { type: String, default: null },                       // file name in uploads/
+  photo: { type: String, default: null },                       // the Photo's id (models/Photo.js)
   visitDate: { type: Date, required: true, index: true },        // when the visit happens
   status: { type: String, enum: STATUSES, default: 'ongoing', index: true },
   notes: { type: String, default: '' },
@@ -41,7 +41,7 @@ export const trackingFields = {
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true }, // who submitted it
 };
 
-// What the API sends: `id`, the `type`, and a `photoUrl` instead of the file name.
+// What the API sends: `id`, the `type`, and a `photoUrl` instead of the photo id.
 export const recordOptions = (type) => ({
   timestamps: true,
   toJSON: {

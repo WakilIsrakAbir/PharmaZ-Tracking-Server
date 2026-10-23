@@ -1,11 +1,10 @@
 import { randomInt } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
-import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
-import { UPLOADS_DIR, env } from './config.js';
+import { env } from './config.js';
+import { Photo } from './models/Photo.js';
 
 // ---------------------------------------------------------------------------
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
@@ -15,13 +14,13 @@ export const STATUSES = ['ongoing', 'setup', 'implementation'];   // the onboard
 export const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 
 // ---------------------------------------------------------------------------
-// Photos (saved by middleware/upload.js)
+// Photos (saved to the database by middleware/upload.js; `photoId` is the Photo's id)
 // ---------------------------------------------------------------------------
-export const photoUrl = (fileName) => (fileName ? `/api/v1/uploads/${fileName}` : null);
+export const photoUrl = (photoId) => (photoId ? `/api/v1/uploads/${photoId}` : null);
 
-export async function removePhoto(fileName) {
-  if (!fileName) return;
-  await unlink(path.join(UPLOADS_DIR, path.basename(fileName))).catch(() => {});
+export async function removePhoto(photoId) {
+  if (!photoId) return;
+  await Photo.deleteOne({ _id: photoId }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------

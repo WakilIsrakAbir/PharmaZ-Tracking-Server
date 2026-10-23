@@ -1,5 +1,4 @@
-# Not needed on Vercel: local photos, secrets, the API tests, the local scripts and the docs.
-uploads
+# Not needed on Vercel: secrets, the API tests, the local scripts and the docs.
 .env
 .env.*
 postman

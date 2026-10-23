@@ -95,7 +95,7 @@ export function recordRoutes(Model, input) {
     const values = req.valid.body;
     const record = await Model.create({
       ...values,
-      photo: req.file?.filename ?? null,
+      photo: req.photoId,
       createdBy: req.user._id,
       history: [{ status: values.status, visitDate: values.visitDate, note: 'Form submitted', by: req.user._id }],
     });
@@ -111,9 +111,9 @@ export function recordRoutes(Model, input) {
     const record = await findRecord(req.valid.params.id, req.user);
     const values = req.valid.body;
     const moved = values.status !== record.status || values.visitDate.getTime() !== record.visitDate.getTime();
-    const replacedPhoto = req.file ? record.photo : null;
+    const replacedPhoto = req.photoId ? record.photo : null;
 
-    record.set({ ...values, ...(req.file && { photo: req.file.filename }) });
+    record.set({ ...values, ...(req.photoId && { photo: req.photoId }) });
     if (moved) {
       record.history.push({ status: values.status, visitDate: values.visitDate, note: 'Form updated', by: req.user._id });
     }

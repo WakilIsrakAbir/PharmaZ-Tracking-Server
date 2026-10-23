@@ -87,8 +87,9 @@ info:
 
     **Photos** are sent together with the form as `multipart/form-data`: the form fields go in a text
     part called `data` (the same JSON as the JSON body) and the image in a file part called `photo`
-    (JPG, PNG or WebP, at most 2 MB). A record's `photoUrl` points to `/api/v1/uploads/...`, which
-    also needs a signed-in session, and only works for someone who can see that record.
+    (JPG, PNG or WebP, at most 2 MB). The API shrinks it to at most 1200px, converts it to WebP and keeps
+    it in the database. A record's `photoUrl` points to `/api/v1/uploads/...`, which also needs a
+    signed-in session, and only works for someone who can see that record.
   contact:
     name: PharmaZ247 Tracker team
 servers:
@@ -888,32 +889,24 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /uploads/{file}:
+  /uploads/{id}:
     get:
       tags: [Uploads]
       operationId: getUpload
       summary: Load a photo
-      description: The image a record's `photoUrl` points to. Needs a signed-in session, like everything else, and answers `404` to a marketing user who can't see that record.
+      description: The image a record's `photoUrl` points to, always WebP. Needs a signed-in session, like everything else, and answers `404` to a marketing user who can't see that record.
       parameters:
-        - name: file
+        - name: id
           in: path
           required: true
-          description: The last part of `photoUrl`.
+          description: The last part of `photoUrl` (the photo's id).
           schema:
             type: string
-          example: 6717b2e4c2b1e45d8a0f2b10.jpg
+          example: 6717b2e4c2b1e45d8a0f2b10
       responses:
         '200':
           description: The image.
           content:
-            image/jpeg:
-              schema:
-                type: string
-                format: binary
-            image/png:
-              schema:
-                type: string
-                format: binary
             image/webp:
               schema:
                 type: string
@@ -1296,7 +1289,7 @@ components:
       type: [string, 'null']
       pattern: '^/api/v1/uploads/[^/]+$'
       description: Where to load the photo (needs a signed-in session), or `null` when there is no photo.
-      examples: ['/api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg']
+      examples: ['/api/v1/uploads/6717b2e4c2b1e45d8a0f2b10']
     StatusCounts:
       type: object
       description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
@@ -2016,7 +2009,7 @@ components:
           visitDate: '2026-10-21T11:00:00.000Z'
           status: ongoing
           notes: Prefers visits after 5 PM, before the chamber gets busy.
-          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
           bmdcRegNo: A-43921
           chamberName: Square Hospital Chambers
           chamberNo: Room 402
@@ -2059,7 +2052,7 @@ components:
           visitDate: '2026-10-28T11:00:00.000Z'
           status: implementation
           notes: Prefers visits after 5 PM, before the chamber gets busy.
-          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
           bmdcRegNo: A-43921
           chamberName: Square Hospital Chambers
           chamberNo: Room 402
@@ -2289,7 +2282,7 @@ components:
               total: 2
             visitDate: '2026-10-21T11:00:00.000Z'
             phone: '+8801711234567'
-            photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10.jpg
+            photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan
