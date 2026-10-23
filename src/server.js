@@ -1,9 +1,9 @@
 // Starts the API on your computer, or on a host that runs `npm start` (Render, Railway, a VPS…).
 // On Vercel, api/index.js is used instead. The API itself is in app.js.
-import { app } from './app.js';
-import { connectDB, env } from './config.js';
+import app, { databaseReady } from './app.js';
+import { env } from './config.js';
 
-// The API answers right away, then connects to MongoDB. Until that works, requests get a 503
+// The API answers right away while app.js connects to MongoDB. Until that works, requests get a 503
 // that says why (app.js, step 2), so the web app can show the reason instead of "can't reach the server".
 
 // On a developer's computer, only this computer can reach the API (the web app forwards
@@ -22,4 +22,4 @@ app.listen(env.PORT, host, (error) => {
   console.log(`✓ API listening on http://localhost:${env.PORT}/api/v1`);
 });
 
-await connectDB();
+await databaseReady;

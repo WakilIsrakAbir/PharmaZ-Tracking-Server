@@ -4,7 +4,7 @@
   "private": true,
   "description": "PharmaZ247 Tracker API",
   "type": "module",
-  "main": "src/server.js",
+  "main": "api/index.js",
   "engines": {
     "node": ">=22.9"
   },
@@ -35,7 +35,10 @@
     "nodemon": "^3.1.14"
   },
   "nodemonConfig": {
-    "watch": ["src", ".env"],
+    "watch": [
+      "src",
+      ".env"
+    ],
     "ext": "js,json,env",
     "delay": 300
   }

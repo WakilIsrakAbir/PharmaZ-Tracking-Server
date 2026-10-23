@@ -3,13 +3,14 @@
 //   2. the routes (the whole API on one screen)
 //   3. error handling
 // Starting it is separate: server.js (your computer, or a normal host) and api/index.js (Vercel).
+// Both import this file, which also starts the MongoDB connection (databaseReady, at the bottom).
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
-import { UPLOADS_DIR, database, env } from './config.js';
+import { UPLOADS_DIR, connectDB, database, env } from './config.js';
 import { requireAdmin, requireAuth } from './middleware/auth.js';
 import { ApiError, errorHandler, notFound } from './middleware/errors.js';
 import { requirePhotoAccess } from './middleware/upload.js';
@@ -20,7 +21,7 @@ import calendarRoutes from './routes/calendar.js';
 import { recordRoutes } from './routes/records.js';
 import userRoutes from './routes/users.js';
 
-export const app = express();
+const app = express();
 
 // Photos need a sign-in, so only the viewer's own browser may keep a copy (for a week).
 const privateCache = (res) => res.setHeader('Cache-Control', 'private, max-age=604800');
@@ -56,3 +57,9 @@ app.use('/api/v1', api);
 // 3. Errors ------------------------------------------------------------------
 app.use(notFound);       // unknown URL → 404
 app.use(errorHandler);   // any error → clean JSON
+
+// Start connecting to MongoDB now, without waiting (the API must answer right away, with a 503 until
+// the database is ready). Whoever starts the app can await this to know when the first try is over.
+export const databaseReady = connectDB().catch(() => {});
+
+export default app;
