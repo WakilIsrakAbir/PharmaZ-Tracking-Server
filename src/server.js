@@ -9,9 +9,9 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
-import { UPLOADS_DIR, connectDB, env } from './config.js';
+import { UPLOADS_DIR, connectDB, database, env } from './config.js';
 import { requireAdmin, requireAuth } from './middleware/auth.js';
-import { errorHandler, notFound } from './middleware/errors.js';
+import { ApiError, errorHandler, notFound } from './middleware/errors.js';
 import { requirePhotoAccess } from './middleware/upload.js';
 import { Doctor, doctorInput } from './models/Doctor.js';
 import { Pharmacy, pharmacyInput } from './models/Pharmacy.js';
@@ -36,6 +36,12 @@ if (env.NODE_ENV !== 'test') app.use(morgan(env.isProduction ? 'combined' : 'dev
 // 2. Routes ------------------------------------------------------------------
 const api = express.Router();
 
+// Until MongoDB is connected, every request gets a 503 that says why (instead of hanging).
+api.use((req, res, next) => {
+  if (database.ready) return next();
+  next(new ApiError(503, database.problem, { code: 'DATABASE_UNAVAILABLE' }));
+});
+
 api.get('/health', (req, res) => res.json({ ok: true }));
 api.use('/auth', authRoutes);                                               // sign in / out, me, password
 api.use('/users', requireAuth, requireAdmin, userRoutes);                   // team accounts (admin only)
@@ -52,7 +58,8 @@ app.use(notFound);       // unknown URL → 404
 app.use(errorHandler);   // any error → clean JSON
 
 // 4. Start -------------------------------------------------------------------
-await connectDB();
+// The API answers right away, then connects to MongoDB. Until that works, requests get a 503
+// that says why (step 2), so the web app can show the reason instead of "can't reach the server".
 
 // On a developer's computer, only this computer can reach the API (the web app forwards
 // /api to it). On a host, it must accept outside connections.
@@ -60,8 +67,14 @@ const host = env.isProduction ? '0.0.0.0' : '127.0.0.1';
 
 app.listen(env.PORT, host, (error) => {
   if (error) {
-    console.error(`✖ The API could not start on port ${env.PORT}: ${error.message}`);
+    const hint =
+      error.code === 'EADDRINUSE'
+        ? '\n  Another copy of the API is already using this port (maybe in another terminal). Stop it,\n  or run `npm run dev` again: it stops old copies first.'
+        : '';
+    console.error(`✖ The API could not start on port ${env.PORT}: ${error.message}${hint}`);
     process.exit(1);
   }
-  console.log(`✓ API ready on http://localhost:${env.PORT}/api/v1`);
+  console.log(`✓ API listening on http://localhost:${env.PORT}/api/v1`);
 });
+
+await connectDB();

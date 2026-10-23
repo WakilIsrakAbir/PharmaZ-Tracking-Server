@@ -62,7 +62,7 @@ export function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
 
   const error = toApiError(err);
-  if (error.status >= 500) console.error(err);
+  if (error.status >= 500 && error.status !== 503) console.error(err); // 503: the database is down, explained once at startup
   if (req.file) removePhoto(req.file.filename);   // don't keep photos from failed requests
 
   res.status(error.status).json({

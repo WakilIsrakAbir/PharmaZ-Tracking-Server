@@ -62,6 +62,12 @@ info:
     | 409 | `DUPLICATE` | A value that must be unique was saved twice at the same moment |
     | 429 | `TOO_MANY_REQUESTS` | Too many failed sign-in attempts |
     | 500 | `INTERNAL_ERROR` | Something broke on the server |
+    | 503 | `DATABASE_UNAVAILABLE` | The API is running but can't reach its database yet; `message` says why |
+
+    **Database outages.** The API starts answering before it is connected to MongoDB. Until the
+    connection works, every route (including `GET /health`) answers `503` with
+    `DATABASE_UNAVAILABLE`. On a developer's computer the message explains the likely cause and
+    the fix, for example that MongoDB Atlas doesn't accept this computer's IP address yet.
 
     **Identifiers.** Database ids are 24-character hex strings exposed as `id`. Records are addressed
     by their id, for example `/doctors/6717b2e4c2b1e45d8a0f2b10`.
@@ -114,11 +120,11 @@ paths:
       tags: [Health]
       operationId: getHealth
       summary: Check that the API is running
-      description: Used by hosting health checks and by the local setup check. Needs no session and does not use the `data` envelope.
+      description: Used by hosting health checks and by the local setup check. Needs no session and does not use the `data` envelope. It answers `200` only once the API is connected to its database.
       security: []
       responses:
         '200':
-          description: The API is up.
+          description: The API is up and connected to its database.
           content:
             application/json:
               schema:
@@ -130,6 +136,8 @@ paths:
                     const: true
               example:
                 ok: true
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
 
   /auth/login:
     post:
@@ -1157,6 +1165,16 @@ components:
             error:
               code: TOO_MANY_REQUESTS
               message: Too many sign-in attempts. Please wait 15 minutes and try again.
+    DatabaseUnavailable:
+      description: The API is running but can't reach its database yet. `message` says why; try again once it is fixed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: DATABASE_UNAVAILABLE
+              message: "MongoDB Atlas isn't accepting this computer's internet address (175.29.145.126). Add it in Atlas: Network Access → Add IP Address → Add Current IP Address. The API keeps trying and connects by itself."
     InternalError:
       description: Something broke on the server. The details are in the server log, never in the response.
       content:
@@ -1314,6 +1332,7 @@ components:
         - DUPLICATE
         - TOO_MANY_REQUESTS
         - INTERNAL_ERROR
+        - DATABASE_UNAVAILABLE
     ErrorResponse:
       type: object
       required: [error]

@@ -45,6 +45,11 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Implementation steps: a checklist with a progress bar, ticked off over several visits; the badge shows "Implementation · 2/4" and each history entry keeps the progress
 - [x] API contract (v3.0.0) and Postman tests updated; checked in Edge on desktop and phone
 
+### Screen polish (21 Oct 2026)
+- [x] Large screens: a hamburger next to the logo folds the sidebar into icons (more room for the page), and opens it again; each browser remembers the choice
+- [x] The "← back" link on form pages stays fixed at the top while the page scrolls
+- [x] Details labels: "Date and time" (was "Visit") and "Location" (was "Chamber" / "Address"), the same in the lists
+
 ### Code and tests
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed

@@ -35,7 +35,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Starts the API on http://localhost:4000, and restarts it when a file changes |
+| `npm run dev` | Starts the API on http://localhost:4000 with nodemon, which restarts it when a file in `src/` or `.env` changes. An old copy still using port 4000 is stopped first. If MongoDB can't be reached, it says why and keeps trying |
 | `npm start` | Starts the API without watching files (for hosting) |
 | `npm run test:api` | Runs the 74 Postman API tests against a throwaway API and database (your data is never touched) |
 | `npm run seed:admin` | Creates the first admin from `.env` (safe to run twice) |
@@ -44,7 +44,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 ## The database
 
 - **MongoDB Atlas** (cluster `pharmaz247tracking`, database `pharmaz-tracker`). The connection string, including its password, lives only in `.env`. The connection always uses TLS encryption.
-- Atlas only accepts connections from the IP addresses in **Network Access**. If your internet IP changes, add the new one there.
+- Atlas only accepts connections from the IP addresses in **Network Access**. Internet providers sometimes give you a new IP; then the API says "Can't reach MongoDB Atlas". Fix it in Atlas: **Network Access → Add IP Address → Add Current IP Address**. The API keeps trying and starts by itself once it can connect.
 - The admin password is stored as a bcrypt hash, never as plain text.
 - **Working offline:** set `MONGODB_URI=mongodb://127.0.0.1:27017/pharmaz-tracker`. `npm run db` then starts a local MongoDB with nothing to install, keeping its data in `.data/db`.
 - Photos are saved in `uploads/`, which git ignores.
