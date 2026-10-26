@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { sendAssignmentEmails } from '../email.js';
+import { sendRecordEmails } from '../email.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { ApiError, validate } from '../middleware/errors.js';
 import { formWithPhoto } from '../middleware/upload.js';
 import { User } from '../models/User.js';
-import { allOf, countSteps, visibleTo } from '../models/shared.js';
-import { STATUSES, STATUS_MESSAGE, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
+import { allOf, assigneeJson, countSteps, visibleTo } from '../models/shared.js';
+import { STATUSES, STATUS_MESSAGE, emailField, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
 // /api/v1/doctors (Doctor model) and /api/v1/pharmacies (Pharmacy model).
@@ -15,9 +15,9 @@ import { STATUSES, STATUS_MESSAGE, objectId, optionalText, removePhoto, required
 //   GET    /                list (?search= ?status=), with counts per status
 //   POST   /                submit a new form (JSON, or multipart with a photo)
 //   GET    /:id             one record
-//   PUT    /:id             save the edited form
+//   PUT    /:id             save the edited form (everyone assigned is emailed the new version)
 //   PATCH  /:id/status      the status update: new status, visit date, note, implementation steps
-//   PUT    /:id/assignees   admins only: who is assigned to this record (newly assigned people get an email)
+//   PUT    /:id/assignees   admins only: who is assigned, by email (newly assigned people get an email)
 //   DELETE /:id             admins only
 //
 // Marketing people only see and change the forms they submitted or were assigned to; admins see
@@ -48,9 +48,10 @@ const statusBody = z.object({
   implementationSteps: stepsInput.optional(),
 });
 
-// The whole list of assigned teammates, sent each time (an empty list unassigns everyone).
+// The whole list of assigned people, as email addresses, sent each time (an empty list unassigns
+// everyone). A teammate's address links the record to their account; any other address only gets the emails.
 const assigneesBody = z.object({
-  userIds: z.array(objectId, { error: 'Please send the list of teammates.' }).max(20, 'Assign 20 people or fewer.'),
+  emails: z.array(emailField, { error: 'Please send the list of email addresses.' }).max(20, 'Assign 20 people or fewer.'),
 });
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -59,7 +60,7 @@ const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // and who made each change.
 const PEOPLE = [
   { path: 'createdBy', select: 'name phone' },
-  { path: 'assignedTo', select: 'name phone email' },
+  { path: 'assignedTo.user', select: 'name phone' },
   { path: 'history.by', select: 'name' },
 ];
 
@@ -129,8 +130,12 @@ export function recordRoutes(Model, input) {
     }
     await record.save();
     await removePhoto(replacedPhoto);
+    await record.populate(PEOPLE);
 
-    res.json({ data: await record.populate(PEOPLE) });
+    // Everyone assigned gets the new version of the form (not the person who just edited it).
+    const recipients = record.assignedTo.map(assigneeJson).filter((person) => person.email !== req.user.email);
+    const email = await sendRecordEmails({ record, type: kind, recipients, by: req.user, reason: 'updated' });
+    res.json({ data: record, meta: { email } });
   });
 
   // "Save update" in the details panel.
@@ -150,36 +155,35 @@ export function recordRoutes(Model, input) {
     res.json({ data: await record.populate(PEOPLE) });
   });
 
-  // "Assign" in the details panel. The history remembers who was added and removed, and each
-  // newly assigned teammate gets an email with the whole form. The answer's `meta.email` says
-  // whether those emails went out, so the admin can be told when one didn't.
+  // "Assign" in the details panel. Any email address can be assigned: a teammate's address links
+  // the record to their account (so they see it), any other address just gets the emails. The
+  // history remembers who was added and removed, and each newly assigned person is emailed the
+  // whole form. The answer's `meta.email` says whether those emails went out.
   router.put('/:id/assignees', requireAdmin, validate({ params: idParams, body: assigneesBody }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
-    const userIds = [...new Set(req.valid.body.userIds)];
+    await record.populate(PEOPLE); // so the people being removed can be named in the history
+    const emails = [...new Set(req.valid.body.emails)];
 
-    const people = await User.find({ _id: { $in: userIds }, isActive: true }).select('name phone email');
-    if (people.length !== userIds.length) {
-      throw ApiError.validation({ userIds: 'One of those teammates does not exist or is deactivated.' });
-    }
+    // Teammates whose address is in the list (active accounts only; a deactivated one counts as outside).
+    const teammates = await User.find({ email: { $in: emails }, isActive: true }).select('name phone email');
+    const byEmail = new Map(teammates.map((person) => [person.email, person]));
 
-    const before = record.assignedTo.map(String);
-    const added = people.filter((person) => !before.includes(String(person._id)));
-    const removedIds = before.filter((id) => !userIds.includes(id));
-    const removed = removedIds.length ? await User.find({ _id: { $in: removedIds } }).select('name') : [];
+    const before = record.assignedTo.map(assigneeJson);
+    record.assignedTo = emails.map((email) => ({ email, user: byEmail.get(email)?._id ?? null }));
+    await record.populate(PEOPLE);
+    const after = record.assignedTo.map(assigneeJson);
 
-    record.assignedTo = userIds;
+    const added = after.filter((person) => !before.some((old) => old.email === person.email));
+    const removed = before.filter((person) => !emails.includes(person.email));
     if (added.length || removed.length) {
-      const note = [
-        added.length && `Assigned to ${names(added)}`,
-        removed.length && `No longer assigned: ${names(removed)}`,
-      ]
+      const note = [added.length && `Assigned to ${names(added)}`, removed.length && `No longer assigned: ${names(removed)}`]
         .filter(Boolean)
         .join('. ');
       record.history.push({ status: record.status, visitDate: record.visitDate, note, by: req.user._id });
     }
     await record.save();
 
-    const email = await sendAssignmentEmails({ record, type: kind, assignees: added, assignedBy: req.user });
+    const email = await sendRecordEmails({ record, type: kind, recipients: added, by: req.user, reason: 'assigned' });
     res.json({ data: await record.populate(PEOPLE), meta: { email } });
   });
 
@@ -193,7 +197,7 @@ export function recordRoutes(Model, input) {
   return router;
 }
 
-// "Rafi Hasan, Sumi Akter"
+// "Rafi Hasan, sumi@example.com"
 const names = (people) => people.map((person) => person.name).join(', ');
 
 // The new checklist replaces the old one. A step that was already done keeps the day it was

@@ -9,7 +9,7 @@ body:
   type: json
   content: |-
     {
-      "userIds": ["{{otherUserId}}"]
+      "emails": ["{{otherUserEmail}}", "partner@example.com"]
     }
 scripts:
   - type: afterResponse
@@ -17,17 +17,22 @@ scripts:
     code: |-
       pm.test('200 OK', () => pm.response.to.have.status(200));
       const { data: doctor = {}, meta = {} } = pm.response.json();
-      pm.test('the second marketer is assigned, with name, phone and email', () => {
-        pm.expect(doctor.assignedTo).to.be.an('array').with.lengthOf(1);
+      pm.test('the second marketer is assigned as a teammate, with name, phone and email', () => {
+        pm.expect(doctor.assignedTo).to.be.an('array').with.lengthOf(2);
         const person = doctor.assignedTo[0];
         pm.expect(person.id).to.eql(pm.collectionVariables.get('otherUserId'));
         pm.expect(person.name).to.eql('Second QA Marketer');
         pm.expect(person.email).to.eql(pm.collectionVariables.get('otherUserEmail'));
         pm.expect(person.phone).to.be.a('string');
+        pm.expect(person.teammate).to.eql(true);
+      });
+      pm.test('an outside email address is assigned too, without an account', () => {
+        const outsider = doctor.assignedTo[1];
+        pm.expect(outsider).to.eql({ id: null, name: 'partner@example.com', email: 'partner@example.com', phone: null, teammate: false });
       });
       pm.test('the history remembers who was assigned', () => {
         const last = doctor.history[doctor.history.length - 1] || {};
-        pm.expect(last.note).to.eql('Assigned to Second QA Marketer');
+        pm.expect(last.note).to.eql('Assigned to Second QA Marketer, partner@example.com');
         pm.expect(last.status).to.eql(doctor.status);
       });
       pm.test('says that no email was sent, because SMTP is not set up in the tests', () => {

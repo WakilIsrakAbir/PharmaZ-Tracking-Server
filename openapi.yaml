@@ -25,8 +25,9 @@ info:
     **Who sees what.** A marketing user only sees the records they submitted (`createdBy`) or were
     assigned to (`assignedTo`): in the lists, the calendar, single records, status updates and photos.
     Anyone else's record answers `404`, exactly as if it didn't exist. Admins see every record, and
-    only admins assign people (`PUT /doctors/{id}/assignees`); each newly assigned person gets an
-    email with the whole form, when the API has email settings.
+    only admins assign people (`PUT /doctors/{id}/assignees`), by email address: teammates or anyone
+    outside the team. When the API has email settings, each newly assigned person is emailed the
+    whole form, and everyone assigned is emailed again whenever the form is edited.
 
     **Records.** A record is one filled-in onboarding form: a doctor (`/doctors`) or a pharmacy
     (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
@@ -599,7 +600,8 @@ paths:
         Send the whole form again, with the same rules as `POST /doctors`. When `status` or
         `visitDate` changes, a "Form updated" entry is added to `history`. A new `photo` replaces the
         current one; without one, the current photo stays. `createdBy` and `implementationSteps`
-        never change here.
+        never change here. Everyone assigned to the form is emailed the new version (`meta.email` says
+        whether that worked), except the person who made the edit.
       requestBody:
         $ref: '#/components/requestBodies/DoctorForm'
       responses:
@@ -685,10 +687,11 @@ paths:
       operationId: assignDoctor
       summary: Set who is assigned (admin)
       description: |
-        The "Assign" button in the details panel. Replaces the list of assigned teammates with
-        `userIds` (active accounts only). Assigned people see the doctor and can update it, like the
-        person who submitted it. When the list changes, `history` gets an entry such as
-        "Assigned to Rafi Hasan" or "No longer assigned: Sumi Akter".
+        The "Assign" button in the details panel. Replaces the list of assigned people with
+        `emails`. A teammate's address (an active account) links the doctor to them: they see it
+        and can update it, like the person who submitted it. Any other address is kept as an outside
+        assignee who only gets the emails. When the list changes, `history` gets an entry such as
+        "Assigned to Rafi Hasan, partner@example.com" or "No longer assigned: Sumi Akter".
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -699,7 +702,7 @@ paths:
             schema:
               $ref: '#/components/schemas/AssigneesRequest'
             example:
-              userIds: ['6717a3f9c2b1e45d8a0f1a03']
+              emails: [sumi@pharmaz247.com, partner@example.com]
       responses:
         '200':
           description: The doctor, with the new assignees and history entry.
@@ -884,10 +887,11 @@ paths:
       operationId: assignPharmacy
       summary: Set who is assigned (admin)
       description: |
-        The "Assign" button in the details panel. Replaces the list of assigned teammates with
-        `userIds` (active accounts only). Assigned people see the pharmacy and can update it, like the
-        person who submitted it. When the list changes, `history` gets an entry such as
-        "Assigned to Rafi Hasan" or "No longer assigned: Sumi Akter".
+        The "Assign" button in the details panel. Replaces the list of assigned people with
+        `emails`. A teammate's address (an active account) links the pharmacy to them: they see it
+        and can update it, like the person who submitted it. Any other address is kept as an outside
+        assignee who only gets the emails. When the list changes, `history` gets an entry such as
+        "Assigned to Rafi Hasan, partner@example.com" or "No longer assigned: Sumi Akter".
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -898,7 +902,7 @@ paths:
             schema:
               $ref: '#/components/schemas/AssigneesRequest'
             example:
-              userIds: ['6717a3f9c2b1e45d8a0f1a03']
+              emails: [sumi@pharmaz247.com, partner@example.com]
       responses:
         '200':
           description: The pharmacy, with the new assignees and history entry.
@@ -1392,35 +1396,47 @@ components:
           phone: '+8801711234567'
     Assignee:
       type: object
-      description: A teammate assigned to a form.
-      required: [id, name, phone, email]
+      description: Someone assigned to a form. A teammate has an account (`teammate: true`, with `id` and `phone`); an outside email address has none, and `name` is just the address.
+      required: [id, name, email, phone, teammate]
       properties:
         id:
-          $ref: '#/components/schemas/ObjectId'
+          description: The teammate's user id, or `null` for an outside address.
+          anyOf:
+            - $ref: '#/components/schemas/ObjectId'
+            - type: 'null'
         name:
           type: string
+        email:
+          type: string
+          format: email
         phone:
           anyOf:
             - $ref: '#/components/schemas/Phone'
             - type: 'null'
-        email:
-          type: string
-          format: email
+        teammate:
+          type: boolean
       examples:
         - id: '6717a3f9c2b1e45d8a0f1a03'
           name: Sumi Akter
-          phone: '+8801812345678'
           email: sumi@pharmaz247.com
+          phone: '+8801812345678'
+          teammate: true
+        - id: null
+          name: partner@example.com
+          email: partner@example.com
+          phone: null
+          teammate: false
     AssigneesRequest:
       type: object
-      required: [userIds]
+      required: [emails]
       properties:
-        userIds:
+        emails:
           type: array
-          description: The whole list of assigned teammates (active accounts). An empty list unassigns everyone.
+          description: The whole list of assigned people, as email addresses. A teammate's address links the form to their account; any other address only gets the emails. An empty list unassigns everyone.
           maxItems: 20
           items:
-            $ref: '#/components/schemas/ObjectId'
+            type: string
+            format: email
     EmailReport:
       type: object
       description: What happened to the assignment emails.
@@ -1742,7 +1758,7 @@ components:
           description: The marketing person who submitted the form, with their phone number. They, the assigned teammates and the admins can see the form.
         assignedTo:
           type: array
-          description: Teammates an admin assigned to this form (see `PUT /doctors/{id}/assignees`). They see and can update it, like the submitter.
+          description: The people an admin assigned to this form (see `PUT /doctors/{id}/assignees`): teammates, who see and can update it, and outside email addresses, who only get the emails.
           maxItems: 20
           items:
             $ref: '#/components/schemas/Assignee'

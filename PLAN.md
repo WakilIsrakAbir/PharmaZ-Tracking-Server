@@ -16,7 +16,7 @@
    - All the numbered form fields are on the form's full page (`/doctors/:id`) and in **Edit form**.
 4. **Lists:** all doctors and all pharmacies, with status tabs and search, each opening a full page.
 5. **Who sees what:** a marketing person sees the forms they submitted and the forms assigned to them: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it and who is assigned.
-7. **Assigning:** an admin assigns one or more teammates to a form (**Assign** in the Status card). Each newly assigned person gets an **email with the whole form** (every numbered field, the status, the visit, the address with a map link, the notes, the steps, who submitted it, and a link to open it in the tracker). The history records "Assigned to …" / "No longer assigned: …". This is also how a form moves to someone else when a person leaves.
+7. **Assigning:** an admin assigns people to a form by email address (**Assign** in the Status card): teammates from a list, or anyone outside the team by typing their address. A teammate then sees the form; an outside address only gets the emails. Each newly assigned person gets an **email with the whole form** (every numbered field, the status, the visit, the address with a map link, the notes, the steps, who submitted it, and a link to open it in the tracker). The history records "Assigned to …" / "No longer assigned: …". Whenever the form is **edited**, everyone assigned gets the new version by email. People can be added or removed at any time. This is also how a form moves to someone else when a person leaves.
 6. **Accounts:** only the admin creates accounts (Team page), with a name, email and phone number (all three required). There is no sign-up. New people get a temporary password and choose their own at first sign-in.
 
 ## 2. Pages
@@ -80,9 +80,9 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | PATCH | `/users/:id` | admin | Edit name, phone or role; deactivate or reactivate |
 | POST | `/users/:id/reset-password` | admin | New temporary password |
 | GET · POST | `/doctors` | signed in | List (`?search=&status=`, with counts) / submit a form |
-| GET · PUT | `/doctors/:id` | signed in | One form / save an edited form |
+| GET · PUT | `/doctors/:id` | signed in | One form / save an edited form (everyone assigned is emailed the new version) |
 | PATCH | `/doctors/:id/status` | signed in | New status (+ date, note and implementation steps) → history |
-| PUT | `/doctors/:id/assignees` | admin | Who is assigned (the whole list) → history; newly assigned people are emailed the form |
+| PUT | `/doctors/:id/assignees` | admin | Who is assigned, by email (teammates or outside addresses) → history; newly assigned people are emailed the form |
 | DELETE | `/doctors/:id` | admin | Delete the form, its photo and its history |
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
 | GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |

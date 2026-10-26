@@ -1,0 +1,26 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/doctors/{{doctorId}}/assignees'
+order: 3700
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "emails": ["{{otherUserEmail}}"]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('only the second marketer stays assigned', () => {
+        pm.expect(doctor.assignedTo.map((person) => person.email)).to.eql([pm.collectionVariables.get('otherUserEmail')]);
+      });
+      pm.test('the history says who was removed', () => {
+        const last = doctor.history[doctor.history.length - 1] || {};
+        pm.expect(last.note).to.eql('No longer assigned: partner@example.com');
+      });

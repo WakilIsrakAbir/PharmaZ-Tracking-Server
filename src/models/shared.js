@@ -31,6 +31,15 @@ const historyEntrySchema = new mongoose.Schema(
   { _id: false },
 );
 
+// One assigned person: a teammate (with their account) or just an email address.
+const assigneeSchema = new mongoose.Schema(
+  {
+    email: { type: String, required: true, lowercase: true, trim: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  },
+  { _id: false },
+);
+
 export const trackingFields = {
   photo: { type: String, default: null },                       // the Photo's id (models/Photo.js)
   visitDate: { type: Date, required: true, index: true },        // when the visit happens
@@ -39,18 +48,35 @@ export const trackingFields = {
   implementationSteps: { type: [stepSchema], default: [] },
   history: { type: [historyEntrySchema], default: [] },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true }, // who submitted it
-  // Teammates an admin assigned to this record. They see it and can update it, like the submitter.
-  assignedTo: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], default: [], index: true },
+  // Who an admin assigned to this record. A teammate (`user` set) sees and can update it, like the
+  // submitter; an outside email address only gets the emails.
+  assignedTo: { type: [assigneeSchema], default: [] },
 };
 
-// What the API sends: `id`, the `type`, and a `photoUrl` instead of the photo id.
+// What the API sends: `id`, the `type`, a `photoUrl` instead of the photo id, and each assignee as
+// { id, name, email, phone, teammate } (populate assignedTo.user first; see PEOPLE in routes/records.js).
 export const recordOptions = (type) => ({
   timestamps: true,
   toJSON: {
     versionKey: false,
-    transform: (doc, { _id, photo, ...record }) => ({ id: String(_id), type, ...record, photoUrl: photoUrl(photo) }),
+    transform: (doc, { _id, photo, assignedTo = [], ...record }) => ({
+      id: String(_id),
+      type,
+      ...record,
+      assignedTo: assignedTo.map(assigneeJson),
+      photoUrl: photoUrl(photo),
+    }),
   },
 });
+
+// A populated assignee → what the API sends. An outside email has no account, so no id or phone.
+export function assigneeJson({ email, user }) {
+  // `user` is the populated account: a document (_id) from a query, or its JSON (id) inside toJSON.
+  if (user && user.name !== undefined) {
+    return { id: String(user.id ?? user._id), name: user.name, email, phone: user.phone ?? null, teammate: true };
+  }
+  return { id: null, name: email, email, phone: null, teammate: false };
+}
 
 // The tracking part of each form, checked with zod.
 export const trackingInput = {
@@ -62,7 +88,7 @@ export const trackingInput = {
 // Who may see a record: admins see every form; marketing people the forms they submitted or were
 // assigned to. It's a MongoDB filter, used like this: Doctor.find({ ...visibleTo(req.user), status: 'setup' })
 // To combine it with another filter that also has an $or (such as a search), use allOf().
-export const visibleTo = (user) => (user.role === 'admin' ? {} : { $or: [{ createdBy: user._id }, { assignedTo: user._id }] });
+export const visibleTo = (user) => (user.role === 'admin' ? {} : { $or: [{ createdBy: user._id }, { 'assignedTo.user': user._id }] });
 
 // Several filters that must all match, as one MongoDB filter. Empty filters are left out.
 export function allOf(...filters) {

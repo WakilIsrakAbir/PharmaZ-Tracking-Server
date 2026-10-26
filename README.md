@@ -41,7 +41,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 |---|---|
 | `npm run dev` | Starts the API on http://localhost:4000 with nodemon, which restarts it when a file in `src/` or `.env` changes. An old copy still using port 4000 is stopped first. If MongoDB can't be reached, it says why and keeps trying |
 | `npm start` | Starts the API without watching files (for hosting) |
-| `npm run test:api` | Runs the 87 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
+| `npm run test:api` | Runs the 88 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
 | `npm run seed:admin` | Creates the first admin from `.env` (safe to run twice) |
 | `npm run db` | Starts a local MongoDB, only when `MONGODB_URI` points at this computer |
 
@@ -55,7 +55,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 
 ## Email
 
-When an admin assigns teammates to a form, each newly assigned person gets an email with the whole form (`src/email.js`). It goes out over SMTP, so any mail account works; the settings are in `.env.example`:
+When an admin assigns people to a form, each newly assigned person gets an email with the whole form, and everyone assigned gets the new version whenever the form is edited (`src/email.js`). Assignees can be teammates or any outside email address. It goes out over SMTP, so any mail account works; the settings are in `.env.example`:
 
 - **Gmail or Google Workspace:** `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER` = the address, `SMTP_PASS` = an **App Password** (Google Account → Security → 2-Step Verification → App passwords; never the real password), `EMAIL_FROM="PharmaZ247 Tracker <the address>"`. Gmail allows about 500 emails a day, Workspace 2,000.
 - **Brevo** (free, 300 a day): `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, and the login from Brevo → SMTP & API.

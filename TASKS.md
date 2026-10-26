@@ -47,12 +47,13 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 
 ### Version 6 (23 Oct 2026)
 - [x] **Support** status after Implementation (violet): status picker, form, list tabs, calendar, badges, API contract and tests
-- [x] **Assigned to** in the Status card; admins **Assign** teammates from a list (search by name or email); the history records "Assigned to …" / "No longer assigned: …"
+- [x] **Assigned to** in the Status card; admins **Assign** teammates from a list or any outside email address; people can be added or removed any time; the history records "Assigned to …" / "No longer assigned: …"
 - [x] Assigned people see and can update the form (lists, calendar, details, photos), enforced by the API; the lists and the day list say "by Wakil · with Rafi"
-- [x] **Email** to each newly assigned person with the whole form and an "Open in the tracker" button, over SMTP (`SMTP_*` in `.env`); without settings the API says no email was sent, and the admin sees that after saving
+- [x] **Email** to each newly assigned person with the whole form and an "Open in the tracker" button, and to everyone assigned whenever the form is edited, over SMTP (`SMTP_*` in `.env`); without settings the API says no email was sent, and the admin sees that after saving
 - [x] Photos stored in MongoDB as WebP (shrunk to 1200px), so they work on Vercel; initials show when a photo can't load
 - [x] API on Vercel (`api/index.js`, `vercel.json`); the web app on Vercel with `.env.production`
-- [x] 87 Postman tests (463 checks) passing; API contract updated and linted
+- [x] 88 Postman tests (470 checks) passing; API contract updated and linted
+- [x] Sturdier when the host hiccups (26 Oct 2026): the API keeps reconnecting to MongoDB in production and says so; the web app shows the calm "try again" page for any 5xx from the API instead of "This page didn't load"
 
 ### Screen polish (21 Oct 2026)
 - [x] Large screens: a hamburger next to the logo folds the sidebar into icons (more room for the page), and opens it again; each browser remembers the choice
@@ -63,7 +64,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (87 tests, 463 checks as of 23 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (88 tests, 470 checks as of 26 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---

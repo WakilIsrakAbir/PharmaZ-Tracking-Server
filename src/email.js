@@ -3,7 +3,9 @@ import nodemailer from 'nodemailer';
 import { env } from './config.js';
 
 // Email, over SMTP (Gmail, Google Workspace, Brevo…: the SMTP_* settings in .env decide which).
-// Only one kind of email so far: "you were assigned to this form", with the whole form in it.
+// Two kinds so far, both carrying the whole form:
+//   assigned   "you were assigned to this form", to each newly assigned person
+//   updated    "this form was edited", to everyone assigned
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
 const STATUS_LABELS = { ongoing: 'Ongoing', setup: 'Setup', implementation: 'Implementation', support: 'Support' };
@@ -23,21 +25,24 @@ function mailer() {
   return transport;
 }
 
-// Emails each newly assigned teammate the full form. Never throws: the result says who got the
-// email and who didn't, so the admin can be told ("Assigned, but the email to Rafi failed").
+// Emails the form to each recipient ({ name, email }). Never throws: the result says who got the
+// email and who didn't, so the person who acted can be told ("Saved, but the email to Rafi failed").
+//   reason  'assigned' | 'updated'
+//   by      the signed-in user who assigned or edited (replies go to them)
 //   → { configured, sent: [names], failed: [names] }
-export async function sendAssignmentEmails({ record, type, assignees, assignedBy }) {
+export async function sendRecordEmails({ record, type, recipients, by, reason }) {
   const report = { configured: env.emailEnabled, sent: [], failed: [] };
+  if (recipients.length === 0) return report;
   if (!env.emailEnabled) {
-    if (assignees.length > 0) console.warn('⚠ Email is not set up (SMTP_* in .env), so no assignment email was sent.');
+    console.warn('⚠ Email is not set up (SMTP_* in .env), so no email was sent.');
     return report;
   }
 
   const results = await Promise.allSettled(
-    assignees.map((person) => mailer().sendMail(assignmentEmail({ record, type, person, assignedBy }))),
+    recipients.map((person) => mailer().sendMail(recordEmail({ record, type, person, by, reason }))),
   );
   results.forEach((result, index) => {
-    const { name } = assignees[index];
+    const { name } = recipients[index];
     if (result.status === 'fulfilled') report.sent.push(name);
     else {
       report.failed.push(name);
@@ -50,7 +55,7 @@ export async function sendAssignmentEmails({ record, type, assignees, assignedBy
 // ---------------------------------------------------------------------------
 // The email itself
 // ---------------------------------------------------------------------------
-function assignmentEmail({ record, type, person, assignedBy }) {
+function recordEmail({ record, type, person, by, reason }) {
   const kind = TYPE_LABELS[type];
   const visit = formatVisit(record.visitDate);
   const link = `${env.appUrl}${TYPE_PATHS[type]}/${record._id}`;
@@ -61,35 +66,34 @@ function assignmentEmail({ record, type, person, assignedBy }) {
     ['Notes', record.notes],
     ['Implementation steps', record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n')],
     ['Submitted by', personLine(record.createdBy)],
-    ['Assigned by', personLine(assignedBy)],
+    [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
   ].filter(([, value]) => value); // leave out empty fields
+
+  const intro =
+    reason === 'updated'
+      ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${record.name}. Here is the form as it is now.`
+      : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${record.name}.`;
+  const subject =
+    reason === 'updated'
+      ? `Updated: ${record.name} (${kind}) · visit ${visit}`
+      : `Assigned to you: ${record.name} (${kind}) · visit ${visit}`;
 
   return {
     from: env.EMAIL_FROM,
-    to: `"${person.name}" <${person.email}>`,
-    replyTo: assignedBy.email,
-    subject: `Assigned to you: ${record.name} (${kind}) · visit ${visit}`,
-    text: textBody({ person, assignedBy, kind, record, rows, link }),
-    html: htmlBody({ person, assignedBy, kind, record, rows, link }),
+    to: person.name && person.name !== person.email ? `"${person.name}" <${person.email}>` : person.email,
+    replyTo: by.email,
+    subject,
+    text: textBody({ person, by, intro, rows, link }),
+    html: htmlBody({ person, by, intro, rows, link }),
   };
 }
 
-function textBody({ person, assignedBy, kind, record, rows, link }) {
+function textBody({ person, by, intro, rows, link }) {
   const lines = rows.map(([label, value]) => `${label}: ${value}`);
-  return [
-    `Hi ${firstName(person.name)},`,
-    '',
-    `${assignedBy.name} assigned you to the ${kind.toLowerCase()} onboarding of ${record.name}.`,
-    '',
-    ...lines,
-    '',
-    `Open it in the tracker: ${link}`,
-    '',
-    'PharmaZ247 Tracker',
-  ].join('\n');
+  return [`Hi ${greetingName(person)},`, '', intro, '', ...lines, '', `Open it in the tracker: ${link}`, '', `Reply to this email to reach ${by.name}.`, 'PharmaZ247 Tracker'].join('\n');
 }
 
-function htmlBody({ person, assignedBy, kind, record, rows, link }) {
+function htmlBody({ person, by, intro, rows, link }) {
   const tableRows = rows
     .map(
       ([label, value]) =>
@@ -103,17 +107,14 @@ function htmlBody({ person, assignedBy, kind, record, rows, link }) {
   <div style="max-width:600px;margin:0 auto;padding:24px">
     <p style="margin:0 0 16px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#1e2a5e">PHARMAZ 24/7 TRACKER</p>
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px">
-      <p style="margin:0 0 12px">Hi ${escape(firstName(person.name))},</p>
-      <p style="margin:0 0 20px">
-        <strong>${escape(assignedBy.name)}</strong> assigned you to the ${escape(kind.toLowerCase())} onboarding of
-        <strong>${escape(record.name)}</strong>.
-      </p>
+      <p style="margin:0 0 12px">Hi ${escape(greetingName(person))},</p>
+      <p style="margin:0 0 20px">${escape(intro)}</p>
       <table style="border-collapse:collapse;font-size:14px;width:100%">${tableRows}</table>
       <p style="margin:24px 0 0">
         <a href="${escape(link)}" style="display:inline-block;background:#1e2a5e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Open in the tracker</a>
       </p>
     </div>
-    <p style="margin:16px 0 0;font-size:12px;color:#6b7280">Reply to this email to reach ${escape(assignedBy.name)}.</p>
+    <p style="margin:16px 0 0;font-size:12px;color:#6b7280">Reply to this email to reach ${escape(by.name)}.</p>
   </div>
 </body></html>`;
 }
@@ -163,6 +164,8 @@ function formRows(type, record) {
 // ---------------------------------------------------------------------------
 // Small formatters (the web app has the same ones in lib/format.js)
 // ---------------------------------------------------------------------------
+// "Hi Rafi," for a teammate; "Hi there," for an outside email address with no name.
+const greetingName = (person) => (person.name && person.name !== person.email ? firstName(person.name) : 'there');
 const firstName = (name = '') => name.trim().split(/\s+/)[0] ?? '';
 const mapsLink = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 const personLine = (person) => (person ? [person.name, formatPhone(person.phone)].filter(Boolean).join(' · ') : '');
@@ -181,7 +184,7 @@ function formatPhone(phone) {
 
 const formatTaka = (amount) => (amount === null || amount === undefined ? '' : `৳${new Intl.NumberFormat('en-IN').format(amount)}`);
 
-// "Thu 29 Oct 2026, 4:00 PM" in Dhaka time
+// "Thu 29 Oct 2026, 4:00 pm" in Dhaka time
 function formatVisit(date) {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Dhaka',

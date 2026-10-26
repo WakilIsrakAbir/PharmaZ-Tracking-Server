@@ -58,10 +58,14 @@ export const database = {
   },
 };
 
-// Connects to MongoDB. On a developer's computer it never gives up: it explains once what is
-// probably wrong, then keeps trying, so everything works by itself as soon as the problem is fixed
-// (for example after this computer's IP is allowed in Atlas). In production it tries once and stops.
+// Connects to MongoDB and never gives up: it explains once what is probably wrong, then keeps
+// trying, so everything works by itself as soon as the problem is fixed (for example after this
+// computer's IP is allowed in Atlas, or after a short network hiccup on the host). Meanwhile every
+// request gets a 503 with database.problem. Mongoose reconnects by itself once connected.
 export async function connectDB() {
+  mongoose.connection.on('disconnected', () => {
+    database.problem = 'The server lost its database connection and is reconnecting. Please try again in a moment.';
+  });
   for (let attempt = 1; ; attempt++) {
     try {
       await mongoose.connect(env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
@@ -69,9 +73,10 @@ export async function connectDB() {
       return;
     } catch (error) {
       if (env.isProduction) {
-        database.problem = "The server can't reach its database right now. Please try again in a few minutes.";
-        console.error(`✖ Could not connect to MongoDB: ${error.message}`);
-        throw error;
+        database.problem = "The server can't reach its database right now. Please try again in a moment.";
+        if (attempt === 1) console.error(`✖ Could not connect to MongoDB: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        continue;
       }
       if (attempt === 1) {
         database.problem = await whyNoDatabase(error);

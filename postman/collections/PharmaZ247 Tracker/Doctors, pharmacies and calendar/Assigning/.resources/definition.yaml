@@ -1,6 +1,7 @@
 $kind: collection
 description: |-
-  Admins can assign teammates to a form. The admin assigns the second marketer to the field
+  Admins can assign any email address to a form: a teammate (who then sees it) or an outside address
+  (who only gets the emails). The admin assigns the second marketer and an outside address to the field
   marketer's doctor; the second marketer can then open it, sees it in their list and on the
   calendar, but can't assign anyone themselves. The tests run without SMTP settings, so the API
   reports that no email was sent. Then the field marketer signs back in.

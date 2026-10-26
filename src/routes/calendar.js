@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/errors.js';
 import { Doctor } from '../models/Doctor.js';
 import { Pharmacy } from '../models/Pharmacy.js';
-import { countSteps, visibleTo } from '../models/shared.js';
+import { assigneeJson, countSteps, visibleTo } from '../models/shared.js';
 import { photoUrl } from '../utils.js';
 
 // /api/v1/calendar?from=…&to=…
@@ -25,7 +25,7 @@ const rangeQuery = z
 const FIELDS = 'name address status implementationSteps visitDate phone photo createdBy assignedTo';
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
-  { path: 'assignedTo', select: 'name' },
+  { path: 'assignedTo.user', select: 'name phone' },
 ];
 
 router.get('/', validate({ query: rangeQuery }), async (req, res) => {
@@ -59,7 +59,7 @@ function calendarItem(type, record, place) {
     phone: record.phone,
     photoUrl: photoUrl(record.photo),
     createdBy: userRef(record.createdBy),
-    assignedTo: (record.assignedTo ?? []).map(userRef),
+    assignedTo: (record.assignedTo ?? []).map(assigneeJson).map(({ id, name }) => ({ id, name })),
   };
 }
 
