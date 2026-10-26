@@ -4,6 +4,7 @@ The Express API behind the PharmaZ247 Tracker, an internal app for the PharmaZ24
 
 The web app is in **[PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Client)**.
 
+- **[FEATURES.md](FEATURES.md):** what the tracker does, for non-technical readers
 - **[PLAN.md](PLAN.md):** how the whole app works, and what's next
 - **[TASKS.md](TASKS.md):** the checklist
 - **[openapi.yaml](openapi.yaml):** the API contract, with examples
