@@ -67,7 +67,7 @@ function recordEmail({ record, type, person, by, reason }) {
     ['Implementation steps', record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n')],
     ['Submitted by', personLine(record.createdBy)],
     [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
-  ].filter(([, value]) => value); // leave out empty fields
+  ].filter(([, value]) => (typeof value === 'object' ? value.text : value)); // leave out empty fields
 
   const intro =
     reason === 'updated'
@@ -89,24 +89,32 @@ function recordEmail({ record, type, person, by, reason }) {
 }
 
 function textBody({ person, by, intro, rows, link }) {
-  const lines = rows.map(([label, value]) => `${label}: ${value}`);
+  // A value with a link (the address) gets the URL on its own line under it.
+  const lines = rows.map(([label, value]) => (typeof value === 'object' ? `${label}: ${value.text}\n  ${value.link}` : `${label}: ${value}`));
   return [`Hi ${greetingName(person)},`, '', intro, '', ...lines, '', `Open it in the tracker: ${link}`, '', `Reply to this email to reach ${by.name}.`, 'PharmaZ247 Tracker'].join('\n');
 }
 
 function htmlBody({ person, by, intro, rows, link }) {
+  // A value with a link (the address) shows the text, then a short link, never the long raw URL
+  // (which would wrap over many lines on a phone). Labels may wrap on narrow screens.
+  const cell = (value) => {
+    if (typeof value !== 'object') return escape(value);
+    return `${escape(value.text)}<br><a href="${escape(value.link)}" style="color:#2f6fed;text-decoration:underline">${escape(value.linkLabel)}</a>`;
+  };
   const tableRows = rows
     .map(
       ([label, value]) =>
-        `<tr><td style="padding:6px 12px 6px 0;color:#6b7280;white-space:nowrap;vertical-align:top">${escape(label)}</td>` +
-        `<td style="padding:6px 0;color:#111827;white-space:pre-line">${escape(value)}</td></tr>`,
+        `<tr><td style="padding:6px 12px 6px 0;color:#6b7280;vertical-align:top;width:38%">${escape(label)}</td>` +
+        `<td style="padding:6px 0;color:#111827;white-space:pre-line;word-break:break-word">${cell(value)}</td></tr>`,
     )
     .join('');
 
   return `<!doctype html>
-<html><body style="margin:0;background:#f5f6fa;font-family:Segoe UI,Arial,sans-serif;color:#111827">
-  <div style="max-width:600px;margin:0 auto;padding:24px">
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#f5f6fa;font-family:Segoe UI,Arial,sans-serif;color:#111827">
+  <div style="max-width:600px;margin:0 auto;padding:16px">
     <p style="margin:0 0 16px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#1e2a5e">PHARMAZ 24/7 TRACKER</p>
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
       <p style="margin:0 0 12px">Hi ${escape(greetingName(person))},</p>
       <p style="margin:0 0 20px">${escape(intro)}</p>
       <table style="border-collapse:collapse;font-size:14px;width:100%">${tableRows}</table>
@@ -134,7 +142,7 @@ function formRows(type, record) {
       ['4. Phone No', formatPhone(record.phone)],
       ['5. Email', record.email],
       ['6. Chamber Name', record.chamberName],
-      ['7. Chamber Address', `${record.address}\n${mapsLink(record.address)}`],
+      ['7. Chamber Address', { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' }],
       ['8. Consultation Type', record.consultationTypes.map((value) => CONSULTATION_TYPES[value] ?? value).join(', ')],
       ['9. Chamber No.', record.chamberNo],
       ['10. Slot Duration', record.slotDuration ? `${record.slotDuration} mins` : ''],
@@ -152,7 +160,7 @@ function formRows(type, record) {
     ['5. Email', record.email],
     ['6. Drug License No.', record.drugLicenseNo],
     ['7. Trade License No.', record.tradeLicenseNo],
-    ['8. Address', `${record.address}\n${mapsLink(record.address)}`],
+    ['8. Address', { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' }],
     ['9. Area / Thana', record.area],
     ['10. District', record.district],
     ['11. Opening Days & Time', formatAvailability(record)],
