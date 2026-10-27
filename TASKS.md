@@ -2,7 +2,7 @@
 
 What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is ticked only when the task is built **and** tested.
 
-**Status (23 Oct 2026):** the app is live on Vercel. Version 6 added the Support status, assigning teammates to a form (with an email that carries the whole form), and photos stored in the database. **Next:** email settings on Vercel, and the remaining items under "For you".
+**Status (27 Oct 2026):** the app is live on Vercel. Version 7 added the Demo status, the year overview, greyed past days (no new visits in the past), and the people at the top of the details. **Next:** the remaining items under "For you".
 
 ---
 
@@ -45,6 +45,15 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Implementation steps: a checklist with a progress bar, ticked off over several visits; the badge shows "Implementation · 2/4" and each history entry keeps the progress
 - [x] API contract (v3.0.0) and Postman tests updated; checked in Edge on desktop and phone
 
+### Version 7 (27 Oct 2026)
+- [x] **Demo** status before Ongoing (teal), everywhere
+- [x] A visit is today or later: the date pickers start at today, the API refuses a changed visit date in the past (a record keeps an old date)
+- [x] Calendar: past days greyed; their visits can be opened and updated, but no "New … form" for them; the top buttons use today when a past day is picked
+- [x] "12 onboardings" beside the month name → **year overview** dialog: every month with its counts, other years with ‹ ›, click a month to open it (`GET /calendar/months`)
+- [x] Details: **Submitted by** and **Assigned to** right under the name, with the **Assign** button beside the badges; the Status card keeps the update box and the history
+- [x] API: a short database drop no longer turns into 503s (the driver reconnects, queries wait); on Vercel a cold start waits at most 8 s for the database
+- [x] 90 Postman tests (481 checks) passing; API contract updated and linted
+
 ### Version 6 (23 Oct 2026)
 - [x] **Support** status after Implementation (violet): status picker, form, list tabs, calendar, badges, API contract and tests
 - [x] **Assigned to** in the Status card; admins **Assign** teammates from a list or any outside email address; people can be added or removed any time; the history records "Assigned to …" / "No longer assigned: …"
@@ -64,7 +73,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (88 tests, 470 checks as of 26 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (90 tests, 481 checks as of 27 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---

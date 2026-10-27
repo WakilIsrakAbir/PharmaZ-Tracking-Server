@@ -1,6 +1,6 @@
 # PharmaZ247 Tracker — Feature Overview
 
-*Prepared on 26 October 2026 · Version 6*
+*Prepared on 27 October 2026 · Version 7*
 
 ---
 
@@ -52,6 +52,8 @@ The admin's main view, and everyone's starting point.
 - **Click a day** → that day's onboardings appear on the right, with name, place, status, who entered it and who is assigned.
 - **Click an onboarding** → its full details open on the right (section 5).
 - **New doctor form / New pharmacy form** at the top open a blank form for the chosen day. These buttons stay in view while scrolling.
+- **Past days are greyed out.** What happened on them can still be opened and updated, but nothing new can be planned there: a visit is always today or a later day.
+- **The count beside the month name** ("12 onboardings") opens a **year overview**: all twelve months with their numbers (doctors and pharmacies), with arrows to other years. Clicking a month opens it on the calendar.
 - On a laptop the whole month fits the screen and stays put; only the details on the right scroll. On a phone the details appear under the calendar.
 - A busy day shows the first onboarding and "+2 more"; one click lists them all.
 - A link to a specific day or onboarding can be copied from the address bar and shared with a colleague.
@@ -64,6 +66,7 @@ Opens beside the calendar, or as a full page from the Doctors / Pharmacies lists
 
 **Details** (read only)
 - Name, type and status; BMDC number (doctor) or owner's name (pharmacy).
+- Right under the name: **Submitted by** (who entered it, with phone and date) and **Assigned to** (who the admin sent). Admins have the **Assign** button here, beside the name.
 - Date and time of the visit.
 - Location, with a one-tap **Open in Google Maps** link.
 - Phone, with **Call** and **WhatsApp** buttons; email.
@@ -72,19 +75,18 @@ Opens beside the calendar, or as a full page from the Doctors / Pharmacies lists
 **Status** (the part that changes over time)
 - **Update after each visit:** the new status, the next visit's date and time, a note → *Save update*.
 - **Implementation steps:** a checklist for onboardings that take several visits (for example "Train the chamber assistant"). Steps are ticked off one by one; the badge shows progress such as *Implementation · 2/4*.
-- **Assigned to:** who the admin sent, with their phone number. Admins see an **Assign** button here (section 7).
 - **History:** every change, newest first: the status, the visit date, the note, and who made the change and when. The latest two show by default; *See more* unfolds the rest.
-- **Submitted by:** who entered the form, with their phone number and the date.
 - **Edit form**, to change any field. The full page also lists every numbered field exactly as on the paper form.
 
 ---
 
-## 6. The four statuses
+## 6. The five statuses
 
 Every onboarding is in exactly one status. The colour follows it everywhere.
 
 | Status | Colour | Meaning |
 |---|---|---|
+| **Demo** | Teal | The first visit: showing PharmaZ247 |
 | **Ongoing** | Blue | Talks have started; the form is being filled in |
 | **Setup** | Amber | Profile, slots and fees are being set up in PharmaZ247 |
 | **Implementation** | Green | Going live: training, first bookings, tracked step by step |
@@ -111,7 +113,7 @@ This is the admin's tool for planning the team's visits.
 
 - **Doctor form:** the 15 numbered fields of the paper form, in the same order: name, photo, BMDC number, phone, email, chamber name and address, consultation type, chamber number, slot duration, available days and hours, and the four fees.
 - **Pharmacy form:** 13 fields: name, shop photo, owner, phone, email, drug and trade licence numbers, address, area, district, opening days and hours, home delivery, payment methods (Cash, bKash, Nagad, Card).
-- Under the fields: the **visit date and time** (this puts it on the calendar), the **status**, and **notes**.
+- Under the fields: the **visit date and time** (this puts it on the calendar; today or later, past days can't be chosen), the **status**, and **notes**.
 - Required fields are marked with *; a clear message appears under any field that needs fixing.
 - Photos can be taken with the phone camera on the spot; they are stored safely and shrunk automatically.
 - The form shows the **name and phone of the person entering it**, taken from their account, so nothing extra has to be typed.
@@ -186,7 +188,7 @@ Ideas discussed but not built yet, for the team to decide on:
 |---|---|
 | **Onboarding / form** | One doctor or pharmacy being brought on board, entered as a form |
 | **Visit** | The date and time on the form; what the calendar shows |
-| **Status** | Where the onboarding stands: Ongoing, Setup, Implementation or Support |
+| **Status** | Where the onboarding stands: Demo, Ongoing, Setup, Implementation or Support |
 | **Steps** | The checklist used during Implementation |
 | **Assigned to** | The people the admin sent for this onboarding |
 | **Submitted by** | The person who entered the form |

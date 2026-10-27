@@ -8,11 +8,11 @@
 
 ## 1. What it does
 
-1. **A marketing team member fills in a form.** The doctor form has the same 15 numbered fields as the paper "Doctor Onboarding Form". The pharmacy form is a 13-field draft. Each form also gets a **visit date and time** and a **status**: *Ongoing → Setup → Implementation → Support*. The form is saved under the person's **name and phone number** from their account, so there is nothing extra to type.
-2. **The form appears on the calendar** on its visit date. The home page, the **Dashboard** (`/`), is the month calendar on the left and a details panel on the right. Its **New doctor form** and **New pharmacy form** buttons open a new form for the picked day.
+1. **A marketing team member fills in a form.** The doctor form has the same 15 numbered fields as the paper "Doctor Onboarding Form". The pharmacy form is a 13-field draft. Each form also gets a **visit date and time** and a **status**: *Demo → Ongoing → Setup → Implementation → Support*. A visit is planned for today or a later day; past days can't be picked. The form is saved under the person's **name and phone number** from their account, so there is nothing extra to type.
+2. **The form appears on the calendar** on its visit date. The home page, the **Dashboard** (`/`), is the month calendar on the left and a details panel on the right. Its **New doctor form** and **New pharmacy form** buttons open a new form for the picked day (or today, when a past day is picked: past days are greyed and only show what happened). The count beside the month name opens a **year overview**: every month with its number of onboardings, and a click opens that month.
 3. **Click a visit** and the details open beside the calendar, in two sections:
-   - **Details** (read only): the person or pharmacy, the place (with Google Maps), the phone (Call / WhatsApp) and the notes;
-   - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, **Assigned to**: the teammates working on this form (admins add or remove them with **Assign**), then the history of every change (who made it and when), and under that, **Submitted by**: the name and phone number of the person who submitted the form.
+   - **Details** (read only): the person or pharmacy with, right under the name, **who submitted it** and **who is assigned** (admins have the **Assign** button there), then the place (with Google Maps), the phone (Call / WhatsApp) and the notes;
+   - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, the history of every change (who made it and when).
    - All the numbered form fields are on the form's full page (`/doctors/:id`) and in **Edit form**.
 4. **Lists:** all doctors and all pharmacies, with status tabs and search, each opening a full page.
 5. **Who sees what:** a marketing person sees the forms they submitted and the forms assigned to them: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it and who is assigned.
@@ -53,6 +53,7 @@ To add or change a field, edit three places: the model in this repo (`src/models
 
 | Status | Meaning | Color |
 |---|---|---|
+| **Demo** | The first visit, showing PharmaZ247 | Teal |
 | **Ongoing** | Talks have started | Blue |
 | **Setup** | Profile and slots being set up | Amber |
 | **Implementation** | Going live in PharmaZ247 | Green |
@@ -86,6 +87,7 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | DELETE | `/doctors/:id` | admin | Delete the form, its photo and its history |
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
 | GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |
+| GET | `/calendar/months?year=` | signed in | How many visits each month of a year has (for the year overview) |
 | GET | `/uploads/:id` | signed in | Photos (stored in the database as WebP) |
 
 **Who sees what:** for a marketing user, the lists, the calendar, single forms, status updates and photos only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates).

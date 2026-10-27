@@ -8,7 +8,7 @@ import { env } from './config.js';
 //   updated    "this form was edited", to everyone assigned
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
-const STATUS_LABELS = { ongoing: 'Ongoing', setup: 'Setup', implementation: 'Implementation', support: 'Support' };
+const STATUS_LABELS = { demo: 'Demo', ongoing: 'Ongoing', setup: 'Setup', implementation: 'Implementation', support: 'Support' };
 const TYPE_LABELS = { doctor: 'Doctor', pharmacy: 'Pharmacy' };
 const TYPE_PATHS = { doctor: '/doctors', pharmacy: '/pharmacies' };
 

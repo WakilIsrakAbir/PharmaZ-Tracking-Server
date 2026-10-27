@@ -1,0 +1,23 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar/months'
+order: 5500
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const months = pm.response.json().data || [];
+      pm.test('one entry per month of this year, January to December', () => {
+        pm.expect(months).to.have.lengthOf(12);
+        const year = new Date().getFullYear();
+        pm.expect(months[0].month).to.eql(`${year}-01`);
+        pm.expect(months[11].month).to.eql(`${year}-12`);
+      });
+      pm.test('counts doctors and pharmacies, and adds them up', () => {
+        for (const entry of months) {
+          pm.expect(entry.total).to.eql(entry.doctors + entry.pharmacies);
+        }
+        const visits = months.reduce((sum, entry) => sum + entry.total, 0);
+        pm.expect(visits, 'the sample doctor and pharmacy are in this year').to.be.at.least(2);
+      });

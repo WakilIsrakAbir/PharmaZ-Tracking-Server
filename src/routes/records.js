@@ -7,7 +7,7 @@ import { ApiError, validate } from '../middleware/errors.js';
 import { formWithPhoto } from '../middleware/upload.js';
 import { User } from '../models/User.js';
 import { allOf, assigneeJson, countSteps, visibleTo } from '../models/shared.js';
-import { STATUSES, STATUS_MESSAGE, emailField, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
+import { STATUSES, STATUS_MESSAGE, dhakaDay, emailField, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
 // /api/v1/doctors (Doctor model) and /api/v1/pharmacies (Pharmacy model).
@@ -94,7 +94,7 @@ export function recordRoutes(Model, input) {
       Model.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
-    const counts = { all: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 };
+    const counts = { all: 0, demo: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 };
     for (const { _id, count } of perStatus) {
       counts[_id] = count;
       counts.all += count;
@@ -104,6 +104,7 @@ export function recordRoutes(Model, input) {
 
   router.post('/', formWithPhoto, validate({ body: input }), async (req, res) => {
     const values = req.valid.body;
+    assertVisitNotInPast(values.visitDate);
     const record = await Model.create({
       ...values,
       photo: req.photoId,
@@ -121,6 +122,7 @@ export function recordRoutes(Model, input) {
   router.put('/:id', formWithPhoto, validate({ params: idParams, body: input }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     const values = req.valid.body;
+    assertVisitNotInPast(values.visitDate, record.visitDate);
     const moved = values.status !== record.status || values.visitDate.getTime() !== record.visitDate.getTime();
     const replacedPhoto = req.photoId ? record.photo : null;
 
@@ -142,6 +144,7 @@ export function recordRoutes(Model, input) {
   router.patch('/:id/status', validate({ params: idParams, body: statusBody }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     const { status, visitDate = record.visitDate, note, implementationSteps } = req.valid.body;
+    assertVisitNotInPast(visitDate, record.visitDate);
 
     record.status = status;
     record.visitDate = visitDate;
@@ -199,6 +202,14 @@ export function recordRoutes(Model, input) {
 
 // "Rafi Hasan, sumi@example.com"
 const names = (people) => people.map((person) => person.name).join(', ');
+
+// A visit can't be planned in the past (by the day in Dhaka). A record that already has a past
+// visit keeps it: only a change to another past day is refused.
+function assertVisitNotInPast(visitDate, current = null) {
+  const day = dhakaDay(visitDate);
+  if (current && dhakaDay(current) === day) return;
+  if (day < dhakaDay()) throw ApiError.validation({ visitDate: "The visit date can't be in the past. Pick today or a later day." });
+}
 
 // The new checklist replaces the old one. A step that was already done keeps the day it was
 // ticked off, a newly ticked step gets today, and an unticked step loses its date.

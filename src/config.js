@@ -51,10 +51,14 @@ export const env = {
 
 // The database connection as requests see it. Until it is ready, the API answers every request
 // with a 503 and this reason (requireDatabase in server.js), so the web app can say what's wrong.
+// Once connected, a short drop is left to the driver: it reconnects by itself and queries made
+// meanwhile wait for it (readyState 2, "connecting"), so a hiccup doesn't turn into 503s.
 export const database = {
   problem: 'The API is still connecting to its database. Please try again in a moment.',
+  connectedOnce: false,
   get ready() {
-    return mongoose.connection.readyState === 1;
+    const state = mongoose.connection.readyState;
+    return state === 1 || (this.connectedOnce && state === 2);
   },
 };
 
@@ -70,6 +74,7 @@ export async function connectDB() {
     try {
       await mongoose.connect(env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
       console.log(`✓ MongoDB connected (database "${mongoose.connection.name}")`);
+      database.connectedOnce = true;
       return;
     } catch (error) {
       if (env.isProduction) {

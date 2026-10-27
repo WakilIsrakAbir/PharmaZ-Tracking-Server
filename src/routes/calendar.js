@@ -5,10 +5,10 @@ import { validate } from '../middleware/errors.js';
 import { Doctor } from '../models/Doctor.js';
 import { Pharmacy } from '../models/Pharmacy.js';
 import { assigneeJson, countSteps, visibleTo } from '../models/shared.js';
-import { photoUrl } from '../utils.js';
+import { dhakaDay, photoUrl, startOfDhakaDay } from '../utils.js';
 
-// /api/v1/calendar?from=…&to=…
-// Every doctor and pharmacy form whose visit date falls in the range, for the calendar on the dashboard.
+// /api/v1/calendar?from=…&to=…        every visit in a date range, for the month grid on the dashboard
+// /api/v1/calendar/months?year=2026   how many visits each month of a year has, for the year overview
 // Marketing people get the visits they submitted or were assigned to; admins get the whole team's.
 const router = Router();
 
@@ -27,6 +27,33 @@ const PEOPLE = [
   { path: 'createdBy', select: 'name' },
   { path: 'assignedTo.user', select: 'name phone' },
 ];
+
+const monthsQuery = z.object({
+  year: z.coerce.number({ error: 'Please give a year like 2026.' }).int().min(2000).max(2100).default(() => Number(dhakaDay().slice(0, 4))),
+});
+
+// One entry per month of the year, January to December, with the counts (zero when there is nothing).
+router.get('/months', validate({ query: monthsQuery }), async (req, res) => {
+  const { year } = req.valid.query;
+  const inYear = { visitDate: { $gte: startOfDhakaDay(`${year}-01-01`), $lt: startOfDhakaDay(`${year + 1}-01-01`) } };
+
+  // { "2026-10": 3, … } for one model, counting by the month in Dhaka time.
+  async function countByMonth(Model) {
+    const rows = await Model.aggregate([
+      { $match: { ...visibleTo(req.user), ...inYear } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$visitDate', timezone: 'Asia/Dhaka' } }, count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+  }
+
+  const [doctors, pharmacies] = await Promise.all([countByMonth(Doctor), countByMonth(Pharmacy)]);
+  const data = Array.from({ length: 12 }, (_, index) => {
+    const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+    const counts = { doctors: doctors[month] ?? 0, pharmacies: pharmacies[month] ?? 0 };
+    return { month, ...counts, total: counts.doctors + counts.pharmacies };
+  });
+  res.json({ data });
+});
 
 router.get('/', validate({ query: rangeQuery }), async (req, res) => {
   const { from, to } = req.valid.query;

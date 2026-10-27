@@ -10,8 +10,19 @@ import { Photo } from './models/Photo.js';
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
 // ---------------------------------------------------------------------------
 export const ROLES = ['admin', 'marketing'];
-export const STATUSES = ['ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
-export const STATUS_MESSAGE = 'Status must be Ongoing, Setup, Implementation or Support.';
+export const STATUSES = ['demo', 'ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
+export const STATUS_MESSAGE = 'Status must be Demo, Ongoing, Setup, Implementation or Support.';
+
+// ---------------------------------------------------------------------------
+// Days in Dhaka time (visits are planned by the calendar day in Bangladesh)
+// ---------------------------------------------------------------------------
+const dhakaDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+// The calendar day of a moment, in Dhaka: dhakaDay(new Date()) → "2026-10-27"
+export const dhakaDay = (date = new Date()) => dhakaDate.format(date);
+
+// The moment a Dhaka day starts: startOfDhakaDay('2026-10-27') → 2026-10-26T18:00:00.000Z
+export const startOfDhakaDay = (day) => new Date(`${day}T00:00:00+06:00`);
 export const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 
 // ---------------------------------------------------------------------------

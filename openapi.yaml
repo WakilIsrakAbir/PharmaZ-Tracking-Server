@@ -33,7 +33,9 @@ info:
     (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
     the calendar, a `status`, `createdBy` (the name and phone number of the person who submitted it),
     `assignedTo` (the teammates an admin assigned), `implementationSteps` (a checklist for an implementation that takes several visits), and a
-    `history` of every status and visit-date change.
+    `history` of every status and visit-date change. A visit is planned by its day in Dhaka: a new
+    record, or a change of the visit date, must be today or later (`visitDate` answers `400` otherwise);
+    a record that already has a past visit keeps it.
 
     **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears only
     on the doctor and pharmacy lists. `GET /health` and photo files are the exceptions.
@@ -997,6 +999,52 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /calendar/months:
+    get:
+      tags: [Calendar]
+      operationId: listMonthCounts
+      summary: How many visits each month of a year has
+      description: |
+        For the year overview on the dashboard: one entry per month, January to December, with the
+        number of doctor and pharmacy visits whose `visitDate` falls in that month (Asia/Dhaka), and
+        the total. Months with nothing are included with zeros. Marketing users see only their own
+        and assigned visits counted; admins the whole team's.
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: The year, 2000–2100. Defaults to the current year in Dhaka.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+          example: 2026
+      responses:
+        '200':
+          description: Twelve entries, January first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    minItems: 12
+                    maxItems: 12
+                    items:
+                      $ref: '#/components/schemas/MonthCount'
+              example:
+                data:
+                  - { month: '2026-01', doctors: 0, pharmacies: 0, total: 0 }
+                  - { month: '2026-02', doctors: 2, pharmacies: 1, total: 3 }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /uploads/{id}:
     get:
       tags: [Uploads]
@@ -1157,7 +1205,7 @@ components:
                   message: Please check the highlighted fields.
                   fields:
                     phone: Phone number should look like +880 1711-234567.
-                    status: Status must be Ongoing, Setup, Implementation or Support.
+                    status: Status must be Demo, Ongoing, Setup, Implementation or Support.
             invalidJson:
               summary: The body is not valid JSON
               value:
@@ -1348,9 +1396,10 @@ components:
         - `marketing`: fills in and updates doctor and pharmacy forms
     OnboardingStatus:
       type: string
-      enum: [ongoing, setup, implementation, support]
+      enum: [demo, ongoing, setup, implementation, support]
       description: |
-        Where a doctor or pharmacy is in onboarding. New records start as `ongoing`.
+        Where a doctor or pharmacy is in onboarding. New records start as `ongoing` unless the form says otherwise.
+        - `demo`: the first visit, showing PharmaZ247
         - `ongoing`: talks have started and the form is being filled in
         - `setup`: the form is complete; profile, slots and fees are being set up in PharmaZ247
         - `implementation`: going live, with training and the first bookings
@@ -1396,7 +1445,7 @@ components:
           phone: '+8801711234567'
     Assignee:
       type: object
-      description: Someone assigned to a form. A teammate has an account (`teammate: true`, with `id` and `phone`); an outside email address has none, and `name` is just the address.
+      description: "Someone assigned to a form. A teammate has an account (`teammate: true`, with `id` and `phone`); an outside email address has none, and `name` is just the address."
       required: [id, name, email, phone, teammate]
       properties:
         id:
@@ -1463,9 +1512,12 @@ components:
     StatusCounts:
       type: object
       description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
-      required: [all, ongoing, setup, implementation, support]
+      required: [all, demo, ongoing, setup, implementation, support]
       properties:
         all:
+          type: integer
+          minimum: 0
+        demo:
           type: integer
           minimum: 0
         ongoing:
@@ -1758,7 +1810,7 @@ components:
           description: The marketing person who submitted the form, with their phone number. They, the assigned teammates and the admins can see the form.
         assignedTo:
           type: array
-          description: The people an admin assigned to this form (see `PUT /doctors/{id}/assignees`): teammates, who see and can update it, and outside email addresses, who only get the emails.
+          description: "The people an admin assigned to this form (see `PUT /doctors/{id}/assignees`): teammates, who see and can update it, and outside email addresses, who only get the emails."
           maxItems: 20
           items:
             $ref: '#/components/schemas/Assignee'
@@ -2050,6 +2102,25 @@ components:
           description: The teammates assigned to this form.
           items:
             $ref: '#/components/schemas/UserRef'
+    MonthCount:
+      type: object
+      description: The visits in one month.
+      required: [month, doctors, pharmacies, total]
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          examples: ['2026-10']
+        doctors:
+          type: integer
+          minimum: 0
+        pharmacies:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+          description: doctors + pharmacies
     CalendarResponse:
       type: object
       required: [data]
@@ -2330,6 +2401,7 @@ components:
         meta:
           counts:
             all: 12
+            demo: 0
             ongoing: 5
             setup: 4
             implementation: 3
@@ -2436,6 +2508,7 @@ components:
         meta:
           counts:
             all: 1
+            demo: 0
             ongoing: 1
             setup: 0
             implementation: 0
