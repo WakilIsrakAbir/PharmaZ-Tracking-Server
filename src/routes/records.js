@@ -4,16 +4,15 @@ import { z } from 'zod';
 import { sendRecordEmails } from '../email.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { ApiError, validate } from '../middleware/errors.js';
-import { formWithPhoto } from '../middleware/upload.js';
 import { User } from '../models/User.js';
 import { allOf, assigneeJson, countSteps, visibleTo } from '../models/shared.js';
-import { STATUSES, STATUS_MESSAGE, dhakaDay, emailField, objectId, optionalText, removePhoto, requiredText } from '../utils.js';
+import { STATUSES, STATUS_MESSAGE, dhakaDay, emailField, objectId, optionalText, requiredText } from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
 // /api/v1/doctors (Doctor model) and /api/v1/pharmacies (Pharmacy model).
 //
 //   GET    /                list (?search= ?status=), with counts per status
-//   POST   /                submit a new form (JSON, or multipart with a photo)
+//   POST   /                submit a new form
 //   GET    /:id             one record
 //   PUT    /:id             save the edited form (everyone assigned is emailed the new version)
 //   PATCH  /:id/status      the status update: new status, visit date, note, implementation steps
@@ -105,12 +104,11 @@ export function recordRoutes(Model, input) {
     res.json({ data: records, meta: { counts } });
   });
 
-  router.post('/', formWithPhoto, validate({ body: input }), async (req, res) => {
+  router.post('/', validate({ body: input }), async (req, res) => {
     const values = req.valid.body;
     assertVisitNotInPast(values.visitDate);
     const record = await Model.create({
       ...values,
-      photo: req.photoId,
       createdBy: req.user._id,
       history: [{ status: values.status, visitDate: values.visitDate, note: 'Form submitted', by: req.user._id }],
     });
@@ -122,19 +120,17 @@ export function recordRoutes(Model, input) {
     res.json({ data: await record.populate(PEOPLE) });
   });
 
-  router.put('/:id', formWithPhoto, validate({ params: idParams, body: input }), async (req, res) => {
+  router.put('/:id', validate({ params: idParams, body: input }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     const values = req.valid.body;
     assertVisitNotInPast(values.visitDate, record.visitDate);
     const moved = values.status !== record.status || values.visitDate.getTime() !== record.visitDate.getTime();
-    const replacedPhoto = req.photoId ? record.photo : null;
 
-    record.set({ ...values, ...(req.photoId && { photo: req.photoId }) });
+    record.set(values);
     if (moved) {
       record.history.push({ status: values.status, visitDate: values.visitDate, note: 'Form updated', by: req.user._id });
     }
     await record.save();
-    await removePhoto(replacedPhoto);
     await record.populate(PEOPLE);
 
     // Everyone assigned gets the new version of the form (not the person who just edited it).
@@ -200,7 +196,6 @@ export function recordRoutes(Model, input) {
   router.delete('/:id', requireAdmin, validate({ params: idParams }), async (req, res) => {
     const record = await Model.findByIdAndDelete(req.valid.params.id);
     if (!record) throw new ApiError(404, `We couldn't find that ${kind}.`);
-    await removePhoto(record.photo);
     res.status(204).end();
   });
 

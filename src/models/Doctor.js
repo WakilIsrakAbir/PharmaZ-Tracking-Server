@@ -11,7 +11,7 @@ const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60];   // minutes
 const doctorSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },                  // 1  Full Name
-    //                                                                      2  Doctor Picture → photo
+    //                                                                      2  Doctor Picture: not kept (the tracker has no photos)
     bmdcRegNo: { type: String, trim: true, default: '' },                // 3  BMDC Reg. No.
     phone: { type: String, required: true },                             // 4  Phone No
     email: { type: String, trim: true, default: '' },                    // 5  Email

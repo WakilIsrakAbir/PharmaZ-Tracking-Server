@@ -4,8 +4,7 @@ description: |-
   Contract tests for the PharmaZ247 Tracker API. The contract itself is openapi.yaml.
 
   Run it against a throwaway API and database. `npm run test:api` does this for you. To run it by
-  hand, start from the root of this repository (the photo uploads read postman/fixtures/) and pass
-  the admin account at run time (it is never saved here):
+  hand, start from the root of this repository and pass the admin account at run time (it is never saved here):
 
       postman collection run "postman/collections/PharmaZ247 Tracker" -e postman/environments/local.environment.yaml --env-var "adminEmail=..." --env-var "adminPassword=..."
 
@@ -54,16 +53,10 @@ variables:
     description: Set by "Submit the sample doctor form".
   - key: doctor2Data
     value: ''
-    description: The JSON sent in the data part of the photo uploads.
+    description: The JSON body of "Submit a second doctor form".
   - key: doctor2Id
     value: ''
-    description: Set by "Submit a doctor form with a photo".
-  - key: photoUrl
-    value: ''
-    description: The photoUrl returned by "Submit a doctor form with a photo".
-  - key: photoFullUrl
-    value: ''
-    description: photoUrl on the API's own address, set before "Load the uploaded photo".
+    description: Set by "Submit a second doctor form".
   - key: calendarFrom
     value: ''
     description: Today at 00:00 UTC, set before "Calendar for the next 7 days".
@@ -105,15 +98,12 @@ scripts:
       pm.test('responds within 3 seconds', () => {
         pm.expect(pm.response.responseTime).to.be.below(3000);
       });
-      // A loaded photo is an image; every other response is JSON (or empty).
-      const isPhoto = pm.response.code === 200 && pm.request.url.toString().includes('/uploads/');
-      if (!isPhoto) {
-        pm.test('never exposes a password hash', () => {
-          pm.expect(pm.response.text()).to.not.match(/passwordHash|\$2[aby]\$\d{2}\$/);
+      // Every response is JSON (or empty).
+      pm.test('never exposes a password hash', () => {
+        pm.expect(pm.response.text()).to.not.match(/passwordHash|\$2[aby]\$\d{2}\$/);
+      });
+      if (pm.response.code !== 204) {
+        pm.test('responds with JSON', () => {
+          pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');
         });
-        if (pm.response.code !== 204) {
-          pm.test('responds with JSON', () => {
-            pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');
-          });
-        }
       }

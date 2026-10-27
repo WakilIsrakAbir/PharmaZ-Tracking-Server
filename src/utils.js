@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
 import { env } from './config.js';
-import { Photo } from './models/Photo.js';
 
 // ---------------------------------------------------------------------------
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
@@ -24,16 +23,6 @@ export const dhakaDay = (date = new Date()) => dhakaDate.format(date);
 // The moment a Dhaka day starts: startOfDhakaDay('2026-10-27') → 2026-10-26T18:00:00.000Z
 export const startOfDhakaDay = (day) => new Date(`${day}T00:00:00+06:00`);
 export const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
-
-// ---------------------------------------------------------------------------
-// Photos (saved to the database by middleware/upload.js; `photoId` is the Photo's id)
-// ---------------------------------------------------------------------------
-export const photoUrl = (photoId) => (photoId ? `/api/v1/uploads/${photoId}` : null);
-
-export async function removePhoto(photoId) {
-  if (!photoId) return;
-  await Photo.deleteOne({ _id: photoId }).catch(() => {});
-}
 
 // ---------------------------------------------------------------------------
 // Passwords

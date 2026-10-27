@@ -5,7 +5,7 @@ import { validate } from '../middleware/errors.js';
 import { Doctor } from '../models/Doctor.js';
 import { Pharmacy } from '../models/Pharmacy.js';
 import { assigneeJson, countSteps, visibleTo } from '../models/shared.js';
-import { dhakaDay, photoUrl, startOfDhakaDay } from '../utils.js';
+import { dhakaDay, startOfDhakaDay } from '../utils.js';
 
 // /api/v1/calendar?from=…&to=…        every visit in a date range, for the month grid on the dashboard
 // /api/v1/calendar/months?year=2026   how many visits each month of a year has, for the year overview
@@ -22,7 +22,7 @@ const rangeQuery = z
   .refine(({ from, to }) => to > from, { path: ['to'], error: 'The end date must be after the start date.' })
   .refine(({ from, to }) => to - from <= 62 * DAY, { path: ['to'], error: 'Ask for at most 62 days at a time.' });
 
-const FIELDS = 'name address status implementationSteps visitDate phone photo createdBy assignedTo';
+const FIELDS = 'name address status implementationSteps visitDate phone createdBy assignedTo';
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
   { path: 'assignedTo.user', select: 'name phone' },
@@ -84,7 +84,6 @@ function calendarItem(type, record, place) {
     steps: countSteps(record.implementationSteps),
     visitDate: record.visitDate,
     phone: record.phone,
-    photoUrl: photoUrl(record.photo),
     createdBy: userRef(record.createdBy),
     assignedTo: (record.assignedTo ?? []).map(assigneeJson).map(({ id, name }) => ({ id, name })),
   };

@@ -13,7 +13,6 @@ import morgan from 'morgan';
 import { connectDB, database, env } from './config.js';
 import { requireAdmin, requireAuth } from './middleware/auth.js';
 import { ApiError, errorHandler, notFound } from './middleware/errors.js';
-import { sendPhoto } from './middleware/upload.js';
 import { Doctor, doctorInput } from './models/Doctor.js';
 import { Pharmacy, pharmacyInput } from './models/Pharmacy.js';
 import authRoutes from './routes/auth.js';
@@ -43,11 +42,10 @@ api.use((req, res, next) => {
 api.get('/health', (req, res) => res.json({ ok: true }));
 api.use('/auth', authRoutes);                                               // sign in / out, me, password
 api.use('/users', requireAuth, requireAdmin, userRoutes);                   // team accounts (admin only)
-// Doctors, pharmacies, the calendar and photos: marketing people only get the forms they submitted.
+// Doctors, pharmacies and the calendar: marketing people only get the forms they submitted or were assigned to.
 api.use('/doctors', requireAuth, recordRoutes(Doctor, doctorInput));        // doctor onboarding forms
 api.use('/pharmacies', requireAuth, recordRoutes(Pharmacy, pharmacyInput)); // pharmacy onboarding forms
 api.use('/calendar', requireAuth, calendarRoutes);                          // visits in a date range
-api.get('/uploads/:id', requireAuth, sendPhoto);                           // a record's photo
 
 app.use('/api/v1', api);
 

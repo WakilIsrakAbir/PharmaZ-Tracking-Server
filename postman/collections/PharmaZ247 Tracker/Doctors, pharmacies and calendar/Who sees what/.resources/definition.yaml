@@ -1,6 +1,6 @@
 $kind: collection
 description: |-
   A marketer only sees the forms they submitted. The second marketer signs in and checks that the
-  field marketer's doctors, photos and calendar visits are hidden from them: lists leave them out,
+  field marketer's doctors and calendar visits are hidden from them: lists leave them out,
   and opening one answers 404, as if it didn't exist. Then the field marketer signs back in.
 order: 3500

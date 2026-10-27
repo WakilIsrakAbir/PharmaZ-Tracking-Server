@@ -30,7 +30,7 @@ scripts:
         pm.expect(doctor.status).to.eql('implementation');
       });
       pm.test('each visit has what the calendar shows', () => {
-        pm.expect(doctor).to.include.all.keys('id', 'type', 'name', 'place', 'address', 'status', 'visitDate', 'phone', 'photoUrl');
+        pm.expect(doctor).to.include.all.keys('id', 'type', 'name', 'place', 'address', 'status', 'visitDate', 'phone');
         pm.expect(doctor.place).to.eql('Square Hospital Chambers');
       });
       pm.test('only visits inside the range, soonest first', () => {

@@ -23,7 +23,7 @@ info:
     and delete doctors or pharmacies.
 
     **Who sees what.** A marketing user only sees the records they submitted (`createdBy`) or were
-    assigned to (`assignedTo`): in the lists, the calendar, single records, status updates and photos.
+    assigned to (`assignedTo`): in the lists, the calendar, single records and status updates.
     Anyone else's record answers `404`, exactly as if it didn't exist. Admins see every record, and
     only admins assign people (`PUT /doctors/{id}/assignees`), by email address: teammates or anyone
     outside the team. When the API has email settings, each newly assigned person is emailed the
@@ -38,7 +38,7 @@ info:
     a record that already has a past visit keeps it.
 
     **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears only
-    on the doctor and pharmacy lists. `GET /health` and photo files are the exceptions.
+    on the doctor and pharmacy lists. `GET /health` is the exception.
 
     **Error responses** always have the same shape. `message` is written for people, so the web app
     can show it as it is:
@@ -55,7 +55,7 @@ info:
     | Status | `code` | When |
     |---|---|---|
     | 400 | `VALIDATION_ERROR` | The body, query or path did not pass validation (see `fields`) |
-    | 400 | `INVALID_JSON` | The request body, or the `data` part of a form upload, is not valid JSON |
+    | 400 | `INVALID_JSON` | The request body is not valid JSON |
     | 400 | `BAD_REQUEST` | The request can't be processed as sent |
     | 400 | `SELF_CHANGE` | An admin tried to deactivate, demote or reset their own account |
     | 401 | `UNAUTHORIZED` | No session, or the session expired or was ended |
@@ -90,11 +90,6 @@ info:
 
     **Money** is whole Bangladeshi taka (BDT, ৳), sent as integers.
 
-    **Photos** are sent together with the form as `multipart/form-data`: the form fields go in a text
-    part called `data` (the same JSON as the JSON body) and the image in a file part called `photo`
-    (JPG, PNG or WebP, at most 2 MB). The API shrinks it to at most 1200px, converts it to WebP and keeps
-    it in the database. A record's `photoUrl` points to `/api/v1/uploads/...`, which also needs a
-    signed-in session, and only works for someone who can see that record.
   contact:
     name: PharmaZ247 Tracker team
 servers:
@@ -117,8 +112,6 @@ tags:
     description: Pharmacy onboarding forms. The field list is a draft until the pharmacy paper form is confirmed.
   - name: Calendar
     description: Every doctor and pharmacy visit in a date range, for the calendar on the dashboard.
-  - name: Uploads
-    description: Photos sent with the forms.
 
 paths:
   /health:
@@ -548,7 +541,7 @@ paths:
         name and phone number come from their account), and `history` starts with one entry,
         "Form submitted". `status` starts as `ongoing` unless the form says otherwise.
 
-        Send JSON, or `multipart/form-data` when there is a photo (see **Photos** above).
+        Send the form as JSON.
       requestBody:
         $ref: '#/components/requestBodies/DoctorForm'
       responses:
@@ -600,8 +593,7 @@ paths:
       summary: Save an edited doctor form
       description: |
         Send the whole form again, with the same rules as `POST /doctors`. When `status` or
-        `visitDate` changes, a "Form updated" entry is added to `history`. A new `photo` replaces the
-        current one; without one, the current photo stays. `createdBy` and `implementationSteps`
+        `visitDate` changes, a "Form updated" entry is added to `history`. `createdBy` and `implementationSteps`
         never change here. Everyone assigned to the form is emailed the new version (`meta.email` says
         whether that worked), except the person who made the edit.
       requestBody:
@@ -1049,33 +1041,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /uploads/{id}:
-    get:
-      tags: [Uploads]
-      operationId: getUpload
-      summary: Load a photo
-      description: The image a record's `photoUrl` points to, always WebP. Needs a signed-in session, like everything else, and answers `404` to a marketing user who can't see that record.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The last part of `photoUrl` (the photo's id).
-          schema:
-            type: string
-          example: 6717b2e4c2b1e45d8a0f2b10
-      responses:
-        '200':
-          description: The image.
-          content:
-            image/webp:
-              schema:
-                type: string
-                format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
 components:
   securitySchemes:
     sessionCookie:
@@ -1134,7 +1099,7 @@ components:
   requestBodies:
     DoctorForm:
       required: true
-      description: The doctor form. Send JSON, or `multipart/form-data` with a `data` part (the same JSON as a string) and an optional `photo` file.
+      description: The doctor form, as JSON.
       content:
         application/json:
           schema:
@@ -1142,17 +1107,9 @@ components:
           examples:
             sampleForm:
               $ref: '#/components/examples/DoctorTanvirForm'
-        multipart/form-data:
-          schema:
-            $ref: '#/components/schemas/FormUpload'
-          encoding:
-            data:
-              contentType: text/plain
-            photo:
-              contentType: image/*
     PharmacyForm:
       required: true
-      description: The pharmacy form. Send JSON, or `multipart/form-data` with a `data` part (the same JSON as a string) and an optional `photo` file.
+      description: The pharmacy form, as JSON.
       content:
         application/json:
           schema:
@@ -1160,14 +1117,6 @@ components:
           examples:
             sampleForm:
               $ref: '#/components/examples/PharmacyRahmanForm'
-        multipart/form-data:
-          schema:
-            $ref: '#/components/schemas/FormUpload'
-          encoding:
-            data:
-              contentType: text/plain
-            photo:
-              contentType: image/*
     StatusChange:
       required: true
       content:
@@ -1217,7 +1166,7 @@ components:
                   code: INVALID_JSON
                   message: "The request body isn't valid JSON."
     FormError:
-      description: The form didn't pass validation, the photo isn't an accepted image, or the `data` part isn't valid JSON.
+      description: The form didn't pass validation.
       content:
         application/json:
           schema:
@@ -1243,20 +1192,6 @@ components:
                   fields:
                     email: Please enter a valid email address.
                     fees.firstVisit: Enter the fee as a whole number of taka.
-            badPhoto:
-              summary: The photo is not a JPG, PNG or WebP image, or is over 2 MB
-              value:
-                error:
-                  code: VALIDATION_ERROR
-                  message: Please check the highlighted fields.
-                  fields:
-                    photo: Choose a JPG, PNG or WebP photo of 2 MB or less.
-            invalidData:
-              summary: The data part of the upload is not valid JSON
-              value:
-                error:
-                  code: INVALID_JSON
-                  message: "The form data isn't valid JSON."
     BadId:
       description: The id in the URL is not a valid id.
       content:
@@ -1516,11 +1451,6 @@ components:
           description: Names of the newly assigned people whose email could not be sent (they are still assigned).
           items:
             type: string
-    PhotoUrl:
-      type: [string, 'null']
-      pattern: '^/api/v1/uploads/[^/]+$'
-      description: Where to load the photo (needs a signed-in session), or `null` when there is no photo.
-      examples: ['/api/v1/uploads/6717b2e4c2b1e45d8a0f2b10']
     StatusCounts:
       type: object
       description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
@@ -1779,7 +1709,7 @@ components:
     RecordBase:
       type: object
       description: The fields every record has.
-      required: [id, type, name, phone, email, address, visitDate, status, notes, photoUrl, implementationSteps, history, createdBy, assignedTo, createdAt, updatedAt]
+      required: [id, type, name, phone, email, address, visitDate, status, notes, implementationSteps, history, createdBy, assignedTo, createdAt, updatedAt]
       properties:
         id:
           $ref: '#/components/schemas/ObjectId'
@@ -1803,8 +1733,6 @@ components:
         notes:
           type: string
           description: Anything else worth knowing. Empty when there is nothing.
-        photoUrl:
-          $ref: '#/components/schemas/PhotoUrl'
         implementationSteps:
           type: array
           description: The implementation checklist, in order. Empty until someone adds a step.
@@ -1898,7 +1826,7 @@ components:
     Doctor:
       description: |
         A filled-in Doctor Onboarding Form. The paper form's fields map to: (1) `name`,
-        (2) `photoUrl`, (3) `bmdcRegNo`, (4) `phone`, (5) `email`, (6) `chamberName`, (7) `address`,
+        (2) is the photo, which the tracker does not keep, (3) `bmdcRegNo`, (4) `phone`, (5) `email`, (6) `chamberName`, (7) `address`,
         (8) `consultationTypes`, (9) `chamberNo`, (10) `slotDuration`, (11) `availableDays`,
         `availableFrom` and `availableTo`, (12–15) `fees`.
       allOf:
@@ -2003,19 +1931,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/RecordFormBase'
         - $ref: '#/components/schemas/PharmacyFields'
-    FormUpload:
-      type: object
-      description: A form sent with a photo.
-      required: [data]
-      properties:
-        data:
-          type: string
-          description: The form fields as a JSON string, exactly like the JSON body.
-          examples: ['{"name":"Dr. Tanvir Ahmed (Cardiology)","phone":"01711234567","address":"18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka","visitDate":"2026-10-21T11:00:00.000Z"}']
-        photo:
-          type: string
-          format: binary
-          description: 'Optional. A JPG, PNG or WebP image, at most 2 MB. On `PUT` it replaces the current photo; leave it out to keep the current one.'
     StatusChangeRequest:
       type: object
       required: [status]
@@ -2078,7 +1993,7 @@ components:
     CalendarItem:
       type: object
       description: One visit on the calendar.
-      required: [id, type, name, place, address, status, steps, visitDate, phone, photoUrl, createdBy, assignedTo]
+      required: [id, type, name, place, address, status, steps, visitDate, phone, createdBy, assignedTo]
       properties:
         id:
           $ref: '#/components/schemas/ObjectId'
@@ -2102,8 +2017,6 @@ components:
           $ref: '#/components/schemas/DateTime'
         phone:
           $ref: '#/components/schemas/Phone'
-        photoUrl:
-          $ref: '#/components/schemas/PhotoUrl'
         createdBy:
           description: Whose visit it is (the person who submitted the form), or `null` when that isn't known.
           anyOf:
@@ -2276,7 +2189,6 @@ components:
           visitDate: '2026-10-21T11:00:00.000Z'
           status: ongoing
           notes: Prefers visits after 5 PM, before the chamber gets busy.
-          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
           bmdcRegNo: A-43921
           chamberName: Square Hospital Chambers
           chamberNo: Room 402
@@ -2319,7 +2231,6 @@ components:
           visitDate: '2026-10-28T11:00:00.000Z'
           status: implementation
           notes: Prefers visits after 5 PM, before the chamber gets busy.
-          photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
           bmdcRegNo: A-43921
           chamberName: Square Hospital Chambers
           chamberNo: Room 402
@@ -2380,7 +2291,6 @@ components:
             visitDate: '2026-10-21T11:00:00.000Z'
             status: ongoing
             notes: ''
-            photoUrl: null
             bmdcRegNo: A-43921
             chamberName: Square Hospital Chambers
             chamberNo: Room 402
@@ -2450,7 +2360,6 @@ components:
           visitDate: '2026-10-21T05:00:00.000Z'
           status: ongoing
           notes: The owner is in the shop every morning.
-          photoUrl: null
           ownerName: Abdur Rahman
           drugLicenseNo: DL-12345
           tradeLicenseNo: ''
@@ -2490,7 +2399,6 @@ components:
             visitDate: '2026-10-21T05:00:00.000Z'
             status: ongoing
             notes: ''
-            photoUrl: null
             ownerName: Abdur Rahman
             drugLicenseNo: DL-12345
             tradeLicenseNo: ''
@@ -2538,7 +2446,6 @@ components:
             steps: null
             visitDate: '2026-10-21T05:00:00.000Z'
             phone: '+8801811223344'
-            photoUrl: null
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan
@@ -2553,7 +2460,6 @@ components:
               total: 2
             visitDate: '2026-10-21T11:00:00.000Z'
             phone: '+8801711234567'
-            photoUrl: /api/v1/uploads/6717b2e4c2b1e45d8a0f2b10
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan

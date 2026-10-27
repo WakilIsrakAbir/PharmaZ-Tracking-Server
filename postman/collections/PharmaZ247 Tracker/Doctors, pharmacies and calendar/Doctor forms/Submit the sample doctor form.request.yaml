@@ -67,10 +67,7 @@ scripts:
       pm.test('keeps the visit date', () => {
         pm.expect(new Date(doctor.visitDate).toISOString()).to.eql(pm.collectionVariables.get('doctorVisitDate'));
       });
-      pm.test('starts as ongoing, with no photo', () => {
-        pm.expect(doctor.status).to.eql('ongoing');
-        pm.expect(doctor.photoUrl).to.eql(null);
-      });
+      pm.test('starts as ongoing', () => pm.expect(doctor.status).to.eql('ongoing'));
       pm.test('history starts with "Form submitted" by the marketer', () => {
         pm.expect(doctor.history).to.be.an('array').with.lengthOf(1);
         const [first] = doctor.history;

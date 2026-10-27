@@ -1,4 +1,3 @@
-import { removePhoto } from '../utils.js';
 
 const DEFAULT_CODES = {
   400: 'BAD_REQUEST',
@@ -63,7 +62,6 @@ export function errorHandler(err, req, res, next) {
 
   const error = toApiError(err);
   if (error.status >= 500 && error.status !== 503) console.error(err); // 503: the database is down, explained once at startup
-  if (req.photoId) removePhoto(req.photoId);     // don't keep photos from failed requests
 
   res.status(error.status).json({
     error: { code: error.code, message: error.message, ...(error.fields && { fields: error.fields }) },

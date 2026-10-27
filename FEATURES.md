@@ -33,7 +33,7 @@ Only an admin can create accounts. There is no public sign-up, so nobody outside
 
 ## 3. How it works, day to day
 
-1. **An onboarding is entered.** The admin or a marketing person opens the **Dashboard**, taps **New doctor form** or **New pharmacy form**, fills in the form (with a photo if needed), sets the visit date and time, and submits. It appears on the calendar at once.
+1. **An onboarding is entered.** The admin or a marketing person opens the **Dashboard**, taps **New doctor form** or **New pharmacy form**, fills in the form, sets the visit date and time, and submits. It appears on the calendar at once.
 2. **The admin sees it on the calendar** along with every other onboarding, colour-coded by status: what is planned for tomorrow, next week, next month.
 3. **The admin assigns who will go.** From the onboarding's details, the admin picks one or more people with the **Assign** button. Each of them receives an email with the whole form (address with map link, phone, fees, notes…) and from then on sees the visit on their own calendar.
 4. **After the visit**, the assigned person opens the onboarding, moves the status forward (for example *Setup → Implementation*), ticks off the steps done, adds a note and saves.
@@ -111,11 +111,10 @@ This is the admin's tool for planning the team's visits.
 
 ## 8. The forms
 
-- **Doctor form:** the 15 numbered fields of the paper form, in the same order: name, photo, BMDC number, phone, email, chamber name and address, consultation type, chamber number, slot duration, available days and hours, and the four fees.
-- **Pharmacy form:** 13 fields: name, shop photo, owner, phone, email, drug and trade licence numbers, address, area, district, opening days and hours, home delivery, payment methods (Cash, bKash, Nagad, Card).
+- **Doctor form:** the 15 numbered fields of the paper form, in the same order: name, BMDC number, phone, email, chamber name and address, consultation type, chamber number, slot duration, available days and hours, and the four fees.
+- **Pharmacy form:** 13 fields: name, owner, phone, email, drug and trade licence numbers, address, area, district, opening days and hours, home delivery, payment methods (Cash, bKash, Nagad, Card).
 - Under the fields: the **visit date and time** (this puts it on the calendar; today or later, past days can't be chosen), the **status**, and **notes**.
 - Required fields are marked with *; a clear message appears under any field that needs fixing.
-- Photos can be taken with the phone camera on the spot; they are stored safely and shrunk automatically.
 - The form shows the **name and phone of the person entering it**, taken from their account, so nothing extra has to be typed.
 
 ---
@@ -157,9 +156,8 @@ An onboarding a person may not see simply does not exist for them: not on their 
 - A new teammate gets a temporary password from the admin and chooses their own at first sign-in. After 5 wrong passwords in 15 minutes, sign-in is paused for that email.
 - Passwords are never stored as text, only in a scrambled form that cannot be reversed.
 - All traffic between the browser and the tracker is encrypted (https).
-- Photos are as private as their forms: only people who may see the onboarding can open its photo.
-- The data lives in a managed cloud database (MongoDB Atlas) over encrypted connections; photos are stored inside it, so a backup of the database includes everything.
-- Deleting an onboarding (admins only) removes it, its photo and its history for everyone.
+- The data lives in a managed cloud database (MongoDB Atlas) over encrypted connections.
+- Deleting an onboarding (admins only) removes it and its history for everyone.
 
 ---
 

@@ -1,6 +1,6 @@
 # PharmaZ247 Tracker: API (server)
 
-The Express API behind the PharmaZ247 Tracker, an internal app for the PharmaZ247 marketing team. After visiting a doctor or a pharmacy, a team member fills in the onboarding form, and the form shows up on a shared calendar with its status. This API handles sign-in, team accounts, the doctor and pharmacy forms (with photos, status history and implementation steps), and the calendar.
+The Express API behind the PharmaZ247 Tracker, an internal app for the PharmaZ247 marketing team. After visiting a doctor or a pharmacy, a team member fills in the onboarding form, and the form shows up on a shared calendar with its status. This API handles sign-in, team accounts, the doctor and pharmacy forms (with status history and implementation steps), and the calendar.
 
 The web app is in **[PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Client)**.
 
@@ -18,9 +18,9 @@ src/
 ├── config.js       settings + database connection
 ├── utils.js        passwords, sign-in sessions, phone numbers, validation rules
 ├── email.js        the assignment email (SMTP)
-├── models/         User, Doctor, Pharmacy, Photo (+ the shared visit, status and steps fields)
+├── models/         User, Doctor, Pharmacy (+ the shared visit, status and steps fields)
 ├── routes/         auth, users, records (doctors & pharmacies), calendar
-└── middleware/     sign-in checks, photo uploads, errors
+└── middleware/     sign-in checks, errors
 api/index.js        starts the API on Vercel (see "Going live")
 vercel.json         tells Vercel to send every request to api/index.js
 scripts/            local database, create the first admin, API tests
@@ -52,7 +52,6 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 - Atlas only accepts connections from the IP addresses in **Network Access**. Internet providers sometimes give you a new IP; then the API says "Can't reach MongoDB Atlas". Fix it in Atlas: **Network Access → Add IP Address → Add Current IP Address**. The API keeps trying and starts by itself once it can connect.
 - The admin password is stored as a bcrypt hash, never as plain text.
 - **Working offline:** set `MONGODB_URI=mongodb://127.0.0.1:27017/pharmaz-tracker`. `npm run db` then starts a local MongoDB with nothing to install, keeping its data in `.data/db`.
-- Photos live in the database too (the `photos` collection), as WebP shrunk to at most 1200px, roughly 50–150 KB each. So they work on any host, and a backup of the database includes them.
 
 ## Email
 
@@ -91,6 +90,6 @@ Two Vercel projects, one per repository. Put the API live first, because the web
 **What to know about Vercel**
 
 - Each push to `main` deploys again by itself, in both projects.
-- The API runs as a serverless function with no disk of its own. That's fine: photos are stored in the database, not in files.
+- The API runs as a serverless function with no disk of its own; nothing is stored in files.
 - Settings come from the project's Environment Variables; `.env` is never uploaded. Changing a variable needs a redeploy.
 - Logs: the project's **Logs** tab shows what `console.log` and `console.error` printed, including "MongoDB connected" or why it couldn't.

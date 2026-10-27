@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-import { STATUSES, STATUS_MESSAGE, optionalText, photoUrl } from '../utils.js';
+import { STATUSES, STATUS_MESSAGE, optionalText } from '../utils.js';
 
 // What every onboarding record has, doctor or pharmacy: the visit date and status that the
-// marketing person sets on the form, notes, the photo, who submitted it, who is assigned to it,
+// marketing person sets on the form, notes, who submitted it, who is assigned to it,
 // the implementation steps, and a history of every change (shown as a timeline).
 
 // Going live can take several visits, so the implementation is split into steps
@@ -43,7 +43,6 @@ const assigneeSchema = new mongoose.Schema(
 );
 
 export const trackingFields = {
-  photo: { type: String, default: null },                       // the Photo's id (models/Photo.js)
   visitDate: { type: Date, required: true, index: true },        // when the visit happens
   status: { type: String, enum: STATUSES, default: 'ongoing', index: true },
   notes: { type: String, default: '' },
@@ -55,18 +54,17 @@ export const trackingFields = {
   assignedTo: { type: [assigneeSchema], default: [] },
 };
 
-// What the API sends: `id`, the `type`, a `photoUrl` instead of the photo id, and each assignee as
+// What the API sends: `id`, the `type`, and each assignee as
 // { id, name, email, phone, teammate } (populate assignedTo.user first; see PEOPLE in routes/records.js).
 export const recordOptions = (type) => ({
   timestamps: true,
   toJSON: {
     versionKey: false,
-    transform: (doc, { _id, photo, assignedTo = [], ...record }) => ({
+    transform: (doc, { _id, assignedTo = [], ...record }) => ({
       id: String(_id),
       type,
       ...record,
       assignedTo: assignedTo.map(assigneeJson),
-      photoUrl: photoUrl(photo),
     }),
   },
 });

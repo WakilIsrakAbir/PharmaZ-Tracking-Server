@@ -10,7 +10,7 @@ const PAYMENT_METHODS = ['cash', 'bkash', 'nagad', 'card'];
 const pharmacySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },                  // 1  Pharmacy Name
-    //                                                                      2  Shop Photo → photo
+    //                                                                      2  Shop Photo: not kept (the tracker has no photos)
     ownerName: { type: String, trim: true, default: '' },                // 3  Owner Name
     phone: { type: String, required: true },                             // 4  Phone No
     email: { type: String, trim: true, default: '' },                    // 5  Email

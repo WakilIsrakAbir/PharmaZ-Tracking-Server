@@ -1,2 +1,0 @@
-This is a plain text file, not a photo.
-The API must refuse it as a photo upload.

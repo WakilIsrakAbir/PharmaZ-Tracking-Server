@@ -37,11 +37,11 @@
 
 **Doctor Onboarding Form** (the numbers match the paper form):
 
-1 Full Name · 2 Doctor Picture · 3 BMDC Reg. No. · 4 Phone No · 5 Email · 6 Chamber Name · 7 Chamber Address · 8 Consultation Type (In-Person / Teleconsultation) · 9 Chamber No. · 10 Slot Duration · 11 Available Days & Time · 12 First Visit · 13 Report View · 14 2nd Visit (within 1 mo.) · 15 After 1 mo.
+1 Full Name · (2 Doctor Picture: not kept) · 3 BMDC Reg. No. · 4 Phone No · 5 Email · 6 Chamber Name · 7 Chamber Address · 8 Consultation Type (In-Person / Teleconsultation) · 9 Chamber No. · 10 Slot Duration · 11 Available Days & Time · 12 First Visit · 13 Report View · 14 2nd Visit (within 1 mo.) · 15 After 1 mo.
 
 **Pharmacy Onboarding Form** (draft — please send the real fields if they differ):
 
-1 Pharmacy Name · 2 Shop Photo · 3 Owner Name · 4 Phone No · 5 Email · 6 Drug License No. · 7 Trade License No. · 8 Address · 9 Area / Thana · 10 District · 11 Opening Days & Time · 12 Home Delivery · 13 Payment Methods (Cash, bKash, Nagad, Card)
+1 Pharmacy Name · (2 Shop Photo: not kept) · 3 Owner Name · 4 Phone No · 5 Email · 6 Drug License No. · 7 Trade License No. · 8 Address · 9 Area / Thana · 10 District · 11 Opening Days & Time · 12 Home Delivery · 13 Payment Methods (Cash, bKash, Nagad, Card)
 
 **Both forms also have:** Visit date and time · Status · Notes. Who submitted the form (name and phone) is taken from the signed-in account.
 
@@ -84,17 +84,16 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | GET · PUT | `/doctors/:id` | signed in | One form / save an edited form (everyone assigned is emailed the new version) |
 | PATCH | `/doctors/:id/status` | signed in | New status (+ date, note and implementation steps) → history |
 | PUT | `/doctors/:id/assignees` | admin | Who is assigned, by email (teammates or outside addresses) → history; newly assigned people are emailed the form |
-| DELETE | `/doctors/:id` | admin | Delete the form, its photo and its history |
+| DELETE | `/doctors/:id` | admin | Delete the form and its history |
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
 | GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |
 | GET | `/calendar/months?year=` | signed in | How many visits each month of a year has (for the year overview) |
-| GET | `/uploads/:id` | signed in | Photos (stored in the database as WebP) |
 
-**Who sees what:** for a marketing user, the lists, the calendar, single forms, status updates and photos only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates).
+**Who sees what:** for a marketing user, the lists, the calendar, single forms and status updates only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates).
 
 **Email:** over SMTP (Gmail, Google Workspace or Brevo; the `SMTP_*` settings in `.env` decide). Without those settings the API sends nothing and says so in its answer (`meta.email.configured: false`), so everything else keeps working.
 
-Forms are sent either as JSON, or as `multipart/form-data` with the fields as JSON in `data` and an optional `photo` (JPG, PNG or WEBP, up to 2 MB). Errors always look like `{ error: { code, message, fields } }`, and the messages are written to be shown to people as they are.
+Forms are sent as JSON. Errors always look like `{ error: { code, message, fields } }`, and the messages are written to be shown to people as they are.
 
 ## 6. Sign-in and security
 
@@ -103,13 +102,13 @@ Forms are sent either as JSON, or as `multipart/form-data` with the fields as JS
 - **Sign-in limit:** 5 failed tries per email every 15 minutes.
 - **Passwords:** any password is allowed, even a short one. It just can't be empty (and 72 characters is the most). A new password must be different from the current one, so the temporary password from the admin always gets replaced.
 - **Checks:** every request is checked by the API, not just the screens. Marketing users can't open `/team`, and the API refuses their admin actions too.
-- **Own forms only:** marketing users can only see and change the forms they submitted, photos included. The API applies this to every request, so it can't be worked around from the browser.
-- **Personal data:** phones, emails, photos and BMDC numbers need a sign-in. Nothing is public.
+- **Own forms only:** marketing users can only see and change the forms they submitted or were assigned to. The API applies this to every request, so it can't be worked around from the browser.
+- **Personal data:** phones, emails and BMDC numbers need a sign-in. Nothing is public.
 
 ## 7. Built with
 
 - **Web:** Next.js 16.4 (App Router, JavaScript), Tailwind CSS v4, shadcn/ui, TanStack Query, react-hook-form, date-fns.
-- **API:** Node.js 24, Express 5, Mongoose 9, zod, multer.
+- **API:** Node.js 24, Express 5, Mongoose 9, zod, nodemailer.
 - **Tests:** Postman CLI.
 - **Times:** all times are shown in Dhaka time, and the week starts on Saturday.
 
@@ -128,7 +127,7 @@ Forms are sent either as JSON, or as `multipart/form-data` with the fields as JS
 
 ## 9. Next steps
 
-- **Going live:** done on Vercel (23 Oct 2026): the API at pharma-z-tracking-server.vercel.app, the web app deployed from the client repository. Photos live in MongoDB as WebP. See the README, "Going live on Vercel".
+- **Going live:** done on Vercel (23 Oct 2026): the API at pharma-z-tracking-server.vercel.app, the web app deployed from the client repository. See the README, "Going live on Vercel".
 - **Email:** set the `SMTP_*` settings on the API's Vercel project so assignment emails go out (see the README).
 - **Nice to have:**
   - a print / PDF view in the paper-form layout;
