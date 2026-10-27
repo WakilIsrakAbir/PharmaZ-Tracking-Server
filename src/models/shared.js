@@ -31,10 +31,12 @@ const historyEntrySchema = new mongoose.Schema(
   { _id: false },
 );
 
-// One assigned person: a teammate (with their account) or just an email address.
+// One assigned person: a teammate (with their account) or an outside email address with the name
+// the admin typed for it (an account's name always comes from the account).
 const assigneeSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, lowercase: true, trim: true },
+    name: { type: String, default: '', trim: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
   },
   { _id: false },
@@ -69,13 +71,14 @@ export const recordOptions = (type) => ({
   },
 });
 
-// A populated assignee → what the API sends. An outside email has no account, so no id or phone.
-export function assigneeJson({ email, user }) {
+// A populated assignee → what the API sends. An outside email has no account, so no id or phone;
+// its name is the one given when assigning, or the address itself when none was.
+export function assigneeJson({ email, name, user }) {
   // `user` is the populated account: a document (_id) from a query, or its JSON (id) inside toJSON.
   if (user && user.name !== undefined) {
     return { id: String(user.id ?? user._id), name: user.name, email, phone: user.phone ?? null, teammate: true };
   }
-  return { id: null, name: email, email, phone: null, teammate: false };
+  return { id: null, name: name || email, email, phone: null, teammate: false };
 }
 
 // The tracking part of each form, checked with zod.

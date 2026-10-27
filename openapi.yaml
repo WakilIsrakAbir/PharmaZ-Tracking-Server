@@ -690,10 +690,10 @@ paths:
       summary: Set who is assigned (admin)
       description: |
         The "Assign" button in the details panel. Replaces the list of assigned people with
-        `emails`. A teammate's address (an active account) links the doctor to them: they see it
+        `assignees`. A teammate's address (an active account) links the doctor to them: they see it
         and can update it, like the person who submitted it. Any other address is kept as an outside
-        assignee who only gets the emails. When the list changes, `history` gets an entry such as
-        "Assigned to Rafi Hasan, partner@example.com" or "No longer assigned: Sumi Akter".
+        assignee who only gets the emails, under the `name` given. When the list changes, `history`
+        gets an entry such as "Assigned to Rafi Hasan, Partner Co" or "No longer assigned: Sumi Akter".
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -704,7 +704,9 @@ paths:
             schema:
               $ref: '#/components/schemas/AssigneesRequest'
             example:
-              emails: [sumi@pharmaz247.com, partner@example.com]
+              assignees:
+                - { email: sumi@pharmaz247.com }
+                - { email: partner@example.com, name: Partner Co }
       responses:
         '200':
           description: The doctor, with the new assignees and history entry.
@@ -890,10 +892,10 @@ paths:
       summary: Set who is assigned (admin)
       description: |
         The "Assign" button in the details panel. Replaces the list of assigned people with
-        `emails`. A teammate's address (an active account) links the pharmacy to them: they see it
+        `assignees`. A teammate's address (an active account) links the pharmacy to them: they see it
         and can update it, like the person who submitted it. Any other address is kept as an outside
-        assignee who only gets the emails. When the list changes, `history` gets an entry such as
-        "Assigned to Rafi Hasan, partner@example.com" or "No longer assigned: Sumi Akter".
+        assignee who only gets the emails, under the `name` given. When the list changes, `history`
+        gets an entry such as "Assigned to Rafi Hasan, Partner Co" or "No longer assigned: Sumi Akter".
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -904,7 +906,9 @@ paths:
             schema:
               $ref: '#/components/schemas/AssigneesRequest'
             example:
-              emails: [sumi@pharmaz247.com, partner@example.com]
+              assignees:
+                - { email: sumi@pharmaz247.com }
+                - { email: partner@example.com, name: Partner Co }
       responses:
         '200':
           description: The pharmacy, with the new assignees and history entry.
@@ -1445,7 +1449,7 @@ components:
           phone: '+8801711234567'
     Assignee:
       type: object
-      description: "Someone assigned to a form. A teammate has an account (`teammate: true`, with `id` and `phone`); an outside email address has none, and `name` is just the address."
+      description: "Someone assigned to a form. A teammate has an account (`teammate: true`, with `id` and `phone`); an outside email address has none, and `name` is the one given when assigning (or the address itself)."
       required: [id, name, email, phone, teammate]
       properties:
         id:
@@ -1477,15 +1481,23 @@ components:
           teammate: false
     AssigneesRequest:
       type: object
-      required: [emails]
+      required: [assignees]
       properties:
-        emails:
+        assignees:
           type: array
-          description: The whole list of assigned people, as email addresses. A teammate's address links the form to their account; any other address only gets the emails. An empty list unassigns everyone.
+          description: The whole list of assigned people. A teammate's address links the form to their account (their `name` is ignored, the account's is used); any other address only gets the emails, under the `name` given. An empty list unassigns everyone.
           maxItems: 20
           items:
-            type: string
-            format: email
+            type: object
+            required: [email]
+            properties:
+              email:
+                type: string
+                format: email
+              name:
+                type: string
+                maxLength: 80
+                description: For an outside address. Optional; the address itself is shown when there is none.
     EmailReport:
       type: object
       description: What happened to the assignment emails.

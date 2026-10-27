@@ -50,6 +50,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] A visit is today or later: the date pickers start at today, the API refuses a changed visit date in the past (a record keeps an old date)
 - [x] Calendar: past days greyed; their visits can be opened and updated, but no "New … form" for them; the top buttons use today when a past day is picked
 - [x] "12 onboardings" beside the month name → **year overview** dialog: every month with its counts, other years with ‹ ›, click a month to open it (`GET /calendar/months`)
+- [x] Lists: an **Assigned to** column (avatars + names); outside assignees get a **name** that is saved and shown everywhere
 - [x] Details: **Submitted by** and **Assigned to** right under the name, with the **Assign** button beside the badges; the Status card keeps the update box and the history
 - [x] API: a short database drop no longer turns into 503s (the driver reconnects, queries wait); on Vercel a cold start waits at most 8 s for the database
 - [x] 90 Postman tests (481 checks) passing; API contract updated and linted

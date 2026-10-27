@@ -9,7 +9,7 @@ body:
   type: json
   content: |-
     {
-      "emails": ["{{otherUserEmail}}", "not-an-email"]
+      "assignees": [{ "email": "{{otherUserEmail}}" }, { "email": "not-an-email" }]
     }
 scripts:
   - type: afterResponse
@@ -19,5 +19,5 @@ scripts:
       const error = pm.response.json().error || {};
       pm.test('VALIDATION_ERROR, naming the field', () => {
         pm.expect(error.code).to.eql('VALIDATION_ERROR');
-        pm.expect(Object.keys(error.fields || {}).some((key) => key.startsWith('emails'))).to.eql(true);
+        pm.expect(Object.keys(error.fields || {}).some((key) => key.startsWith('assignees'))).to.eql(true);
       });

@@ -9,7 +9,7 @@ body:
   type: json
   content: |-
     {
-      "emails": ["{{otherUserEmail}}"]
+      "assignees": [{ "email": "{{otherUserEmail}}" }]
     }
 scripts:
   - type: afterResponse
@@ -22,5 +22,5 @@ scripts:
       });
       pm.test('the history says who was removed', () => {
         const last = doctor.history[doctor.history.length - 1] || {};
-        pm.expect(last.note).to.eql('No longer assigned: partner@example.com');
+        pm.expect(last.note).to.eql('No longer assigned: Partner Co');
       });

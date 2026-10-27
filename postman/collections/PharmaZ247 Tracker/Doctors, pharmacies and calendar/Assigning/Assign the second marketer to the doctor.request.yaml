@@ -9,7 +9,7 @@ body:
   type: json
   content: |-
     {
-      "emails": ["{{otherUserEmail}}", "partner@example.com"]
+      "assignees": [{ "email": "{{otherUserEmail}}" }, { "email": "partner@example.com", "name": "Partner Co" }]
     }
 scripts:
   - type: afterResponse
@@ -26,13 +26,13 @@ scripts:
         pm.expect(person.phone).to.be.a('string');
         pm.expect(person.teammate).to.eql(true);
       });
-      pm.test('an outside email address is assigned too, without an account', () => {
+      pm.test('an outside email address is assigned too, under the name given, without an account', () => {
         const outsider = doctor.assignedTo[1];
-        pm.expect(outsider).to.eql({ id: null, name: 'partner@example.com', email: 'partner@example.com', phone: null, teammate: false });
+        pm.expect(outsider).to.eql({ id: null, name: 'Partner Co', email: 'partner@example.com', phone: null, teammate: false });
       });
       pm.test('the history remembers who was assigned', () => {
         const last = doctor.history[doctor.history.length - 1] || {};
-        pm.expect(last.note).to.eql('Assigned to Second QA Marketer, partner@example.com');
+        pm.expect(last.note).to.eql('Assigned to Second QA Marketer, Partner Co');
         pm.expect(last.status).to.eql(doctor.status);
       });
       pm.test('says that no email was sent, because SMTP is not set up in the tests', () => {

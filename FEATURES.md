@@ -100,7 +100,7 @@ Every status change is written to the onboarding's history, with who made it and
 
 This is the admin's tool for planning the team's visits.
 
-- Only an admin can assign. The **Assign** button opens a list of teammates to tick, plus a box to type **any email address** for someone outside the team (a partner, a senior colleague).
+- Only an admin can assign. The **Assign** button opens a list of teammates to tick, plus a place to add **anyone outside the team** by name and email address (a partner, a senior colleague). The name is saved and shown wherever the assigned people are listed.
 - A **teammate** who is assigned sees the onboarding on their own calendar and in their lists, and can update it after the visit.
 - An **outside email address** gets no access to the tracker; that person only receives the emails.
 - Assignments can be changed at any time: add someone, remove someone, or hand an onboarding over when a person leaves. The history records "Assigned to …" and "No longer assigned: …".
@@ -124,7 +124,7 @@ This is the admin's tool for planning the team's visits.
 
 **Doctors / Pharmacies lists**
 - Every onboarding of that type, newest visit first, with tabs by status (with counts) and a search box (name, phone, BMDC number, chamber, owner, area).
-- Each row shows the person, the location, the date and time, the status, and who is on it ("by Wakil · with Rafi").
+- Each row shows the person, the location (with who entered it), an **Assigned to** column with the assigned people, the date and time, and the status.
 
 **Team** (admins only)
 - Everyone who can sign in, with role, phone, status and last sign-in; *Active* and *Deactivated* tabs; search.

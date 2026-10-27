@@ -48,10 +48,13 @@ const statusBody = z.object({
   implementationSteps: stepsInput.optional(),
 });
 
-// The whole list of assigned people, as email addresses, sent each time (an empty list unassigns
-// everyone). A teammate's address links the record to their account; any other address only gets the emails.
+// The whole list of assigned people, sent each time (an empty list unassigns everyone). A teammate's
+// address links the record to their account; any other address only gets the emails, under the
+// `name` given here (optional).
 const assigneesBody = z.object({
-  emails: z.array(emailField, { error: 'Please send the list of email addresses.' }).max(20, 'Assign 20 people or fewer.'),
+  assignees: z
+    .array(z.object({ email: emailField, name: optionalText(80) }), { error: 'Please send the list of people to assign.' })
+    .max(20, 'Assign 20 people or fewer.'),
 });
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -165,14 +168,18 @@ export function recordRoutes(Model, input) {
   router.put('/:id/assignees', requireAdmin, validate({ params: idParams, body: assigneesBody }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     await record.populate(PEOPLE); // so the people being removed can be named in the history
-    const emails = [...new Set(req.valid.body.emails)];
+    const wanted = new Map(req.valid.body.assignees.map(({ email, name }) => [email, name])); // one entry per address
+    const emails = [...wanted.keys()];
 
     // Teammates whose address is in the list (active accounts only; a deactivated one counts as outside).
     const teammates = await User.find({ email: { $in: emails }, isActive: true }).select('name phone email');
     const byEmail = new Map(teammates.map((person) => [person.email, person]));
 
     const before = record.assignedTo.map(assigneeJson);
-    record.assignedTo = emails.map((email) => ({ email, user: byEmail.get(email)?._id ?? null }));
+    record.assignedTo = emails.map((email) => {
+      const account = byEmail.get(email);
+      return { email, name: account ? '' : wanted.get(email), user: account?._id ?? null };
+    });
     await record.populate(PEOPLE);
     const after = record.assignedTo.map(assigneeJson);
 
