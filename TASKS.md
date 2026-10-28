@@ -38,8 +38,8 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form
 
 ### Version 8 (28 Oct 2026)
-- [x] **Pages:** the Doctors, Pharmacies and Team lists load twenty rows at a time (10 / 20 / 50 to choose), with "Showing 21–40 of 134", page numbers and ‹ ›; the rows on screen fade while the next page loads; a page that no longer exists falls back to the last one
-- [x] **Filters** under the status tabs: Assigned to (anyone / no one yet / me / a teammate), Submitted by (admins), Visit date (today, this week, this month, upcoming, past) and the order (newest visit, oldest visit, name, last updated); a narrowing filter is tinted; "Clear" resets them; the tab counts follow the filters
+- [x] **Pages:** the Doctors, Pharmacies and Team lists load twenty rows at a time (10 / 20 / 50 to choose), with "Showing 21–40 of 134", page numbers and ‹ › always under the list; the rows on screen fade while the next page loads; a page that no longer exists falls back to the last one
+- [x] **Filters** under the status tabs: Assigned to (anyone / no one yet / me / a teammate), Submitted by (admins), Visit date (any time, today, upcoming, past) and the order (newest visit, oldest visit, name, last updated); a narrowing filter is tinted; "Clear" resets them; the tab counts follow the filters
 - [x] **Team:** search, a role filter, the order (name, last sign-in, newest) and pages, the same way
 - [x] The tabs, filters and page live in the address (`?status=setup&page=2`), so a refresh, the back button and shared links keep the view (`lib/useUrlParams.js`, also used by the dashboard)
 - [x] API: `GET /doctors`, `/pharmacies` and `/users` take `page`, `limit`, `sort` and their filters (`assignee`, `createdBy`, `from`, `to`; `role`, `active`) and answer `meta: { page, limit, total, pages, counts }`; names sort A to Z whatever the case; contract 3.1.0 and tests updated
