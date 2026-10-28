@@ -572,7 +572,7 @@ paths:
       description: |
         Any signed-in user can submit a form. The person who sends it becomes `createdBy` (their
         name and phone number come from their account), and `history` starts with one entry,
-        "Form submitted". `status` starts as `ongoing` unless the form says otherwise.
+        "Form submitted". `status` starts as `demo` (the first visit) unless the form says otherwise.
 
         Send the form as JSON.
       requestBody:
@@ -1458,7 +1458,7 @@ components:
       type: string
       enum: [demo, ongoing, setup, implementation, support]
       description: |
-        Where a doctor or pharmacy is in onboarding. New records start as `ongoing` unless the form says otherwise.
+        Where a doctor or pharmacy is in onboarding. New records start as `demo` (the first visit) unless the form says otherwise.
         - `demo`: the first visit, showing PharmaZ247
         - `ongoing`: talks have started and the form is being filled in
         - `setup`: the form is complete; profile, slots and fees are being set up in PharmaZ247

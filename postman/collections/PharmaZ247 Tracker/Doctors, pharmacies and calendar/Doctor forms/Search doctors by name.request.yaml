@@ -16,7 +16,7 @@ scripts:
       });
       pm.test('counts each status', () => {
         const { counts } = meta;
-        pm.expect(counts).to.include.all.keys('all', 'ongoing', 'setup', 'implementation');
+        pm.expect(counts).to.include.all.keys('all', 'demo', 'ongoing', 'setup', 'implementation', 'support');
         pm.expect(counts.all).to.be.at.least(1);
-        pm.expect(counts.all).to.eql(counts.ongoing + counts.setup + counts.implementation);
+        pm.expect(counts.all).to.eql(counts.demo + counts.ongoing + counts.setup + counts.implementation + counts.support);
       });

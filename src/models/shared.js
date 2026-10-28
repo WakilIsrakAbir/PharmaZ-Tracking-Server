@@ -44,7 +44,7 @@ const assigneeSchema = new mongoose.Schema(
 
 export const trackingFields = {
   visitDate: { type: Date, required: true, index: true },        // when the visit happens
-  status: { type: String, enum: STATUSES, default: 'ongoing', index: true },
+  status: { type: String, enum: STATUSES, default: 'demo', index: true },
   notes: { type: String, default: '' },
   implementationSteps: { type: [stepSchema], default: [] },
   history: { type: [historyEntrySchema], default: [] },
@@ -82,7 +82,7 @@ export function assigneeJson({ email, name, user }) {
 // The tracking part of each form, checked with zod.
 export const trackingInput = {
   visitDate: z.coerce.date({ error: 'Please pick the visit date and time.' }),
-  status: z.enum(STATUSES, { error: STATUS_MESSAGE }).default('ongoing'),
+  status: z.enum(STATUSES, { error: STATUS_MESSAGE }).default('demo'), // a new onboarding starts with the demo visit
   notes: optionalText(1000),
 };
 

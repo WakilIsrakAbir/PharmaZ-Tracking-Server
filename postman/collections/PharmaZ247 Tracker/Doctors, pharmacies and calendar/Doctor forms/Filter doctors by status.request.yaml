@@ -17,7 +17,7 @@ scripts:
       });
       pm.test('the counts ignore the status filter', () => {
         pm.expect(meta.counts.all).to.be.at.least(2);
-        pm.expect(meta.counts.ongoing).to.be.at.least(2);
+        pm.expect(meta.counts.demo).to.be.at.least(2);
       });
       pm.test('the page total is the count of that status', () => {
         pm.expect(meta.total).to.eql(meta.counts.setup);

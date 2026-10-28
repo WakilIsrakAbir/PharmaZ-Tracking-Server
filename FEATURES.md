@@ -86,7 +86,7 @@ Every onboarding is in exactly one status. The colour follows it everywhere.
 
 | Status | Colour | Meaning |
 |---|---|---|
-| **Demo** | Teal | The first visit: showing PharmaZ247 |
+| **Demo** | Teal | The first visit: showing PharmaZ247. Every new form starts here |
 | **Ongoing** | Blue | Talks have started; the form is being filled in |
 | **Setup** | Amber | Profile, slots and fees are being set up in PharmaZ247 |
 | **Implementation** | Green | Going live: training, first bookings, tracked step by step |

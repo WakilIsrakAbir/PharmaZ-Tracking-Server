@@ -43,6 +43,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] **Team:** search, a role filter, the order (name, last sign-in, newest) and pages, the same way
 - [x] The tabs, filters and page live in the address (`?status=setup&page=2`), so a refresh, the back button and shared links keep the view (`lib/useUrlParams.js`, also used by the dashboard)
 - [x] API: `GET /doctors`, `/pharmacies` and `/users` take `page`, `limit`, `sort` and their filters (`assignee`, `createdBy`, `from`, `to`; `role`, `active`) and answer `meta: { page, limit, total, pages, counts }`; names sort A to Z whatever the case; contract 3.1.0 and tests updated
+- [x] A new form starts in **Demo** (the first visit), in the form and in the API
 - [x] Assign dialog: the outside person's name and email on their own rows; a typed-in outside person is added on Save; after Save a green message says who is assigned and who was emailed, a **red message with the reason** when the address is wrong, the save is refused, email isn't set up, or the mail server refuses someone (`meta.email.failed` now carries `{ name, reason }`; contract 3.2.0)
 
 ### Version 5 (21 Oct 2026)

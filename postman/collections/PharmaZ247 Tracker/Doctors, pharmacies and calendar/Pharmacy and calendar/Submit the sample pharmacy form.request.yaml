@@ -59,8 +59,8 @@ scripts:
         pm.expect(pharmacy.tradeLicenseNo).to.eql('');
         pm.expect(pharmacy.notes).to.eql('');
       });
-      pm.test('starts as ongoing, with "Form submitted" in the history', () => {
-        pm.expect(pharmacy.status).to.eql('ongoing');
+      pm.test('starts as demo, with "Form submitted" in the history', () => {
+        pm.expect(pharmacy.status).to.eql('demo');
         pm.expect(pharmacy.history).to.be.an('array').with.lengthOf(1);
         pm.expect(pharmacy.history[0].note).to.eql('Form submitted');
       });

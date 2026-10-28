@@ -67,12 +67,12 @@ scripts:
       pm.test('keeps the visit date', () => {
         pm.expect(new Date(doctor.visitDate).toISOString()).to.eql(pm.collectionVariables.get('doctorVisitDate'));
       });
-      pm.test('starts as ongoing', () => pm.expect(doctor.status).to.eql('ongoing'));
+      pm.test('starts as demo, the first visit', () => pm.expect(doctor.status).to.eql('demo'));
       pm.test('history starts with "Form submitted" by the marketer', () => {
         pm.expect(doctor.history).to.be.an('array').with.lengthOf(1);
         const [first] = doctor.history;
         pm.expect(first.note).to.eql('Form submitted');
-        pm.expect(first.status).to.eql('ongoing');
+        pm.expect(first.status).to.eql('demo');
         pm.expect(first.by && first.by.name).to.eql(fieldUser);
       });
       pm.test('records who submitted the form, with their phone number from their account', () => {
