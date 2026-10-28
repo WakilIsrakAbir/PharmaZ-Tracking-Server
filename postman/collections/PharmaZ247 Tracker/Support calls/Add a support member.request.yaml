@@ -1,0 +1,37 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/users'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Support QA Member",
+      "email": "{{supportUserEmail}}",
+      "phone": "01611-223344",
+      "role": "support"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set('supportUserEmail', `support.${Date.now()}@example.com`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const data = pm.response.json().data || {};
+      const user = data.user || {};
+      pm.test('a support member with a one-time temporary password', () => {
+        pm.expect(user.id).to.match(/^[a-f0-9]{24}$/);
+        pm.expect(user.role).to.eql('support');
+        pm.expect(user.mustChangePassword).to.eql(true);
+        pm.expect(data.temporaryPassword).to.be.a('string').with.length.above(7);
+      });
+      if (user.id) {
+        pm.collectionVariables.set('supportUserId', user.id);
+        pm.collectionVariables.set('supportUserTempPassword', data.temporaryPassword);
+      }

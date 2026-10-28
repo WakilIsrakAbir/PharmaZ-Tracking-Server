@@ -1,0 +1,34 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/support-calls/{{callId}}/status'
+order: 8000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "resolved"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const call = pm.response.json().data || {};
+      pm.test('is resolved, and remembers when', () => {
+        pm.expect(call.status).to.eql('resolved');
+        pm.expect(call.resolvedAt).to.be.a('string');
+        pm.expect(Date.now() - new Date(call.resolvedAt).getTime()).to.be.below(60_000);
+      });
+      pm.test('a wrong status is refused', async () => {
+        const response = await pm.sendRequest({
+          url: `${pm.variables.get('baseUrl')}/support-calls/${pm.collectionVariables.get('callId')}/status`,
+          method: 'PATCH',
+          header: { 'Content-Type': 'application/json' },
+          body: { mode: 'raw', raw: JSON.stringify({ status: 'done' }) },
+        });
+        pm.expect(response.code).to.eql(400);
+        pm.expect(response.json().error.fields.status).to.eql('Status must be Open or Resolved.');
+      });

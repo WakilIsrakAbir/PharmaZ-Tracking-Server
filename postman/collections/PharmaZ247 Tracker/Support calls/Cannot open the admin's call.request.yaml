@@ -1,0 +1,12 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/support-calls/{{adminCallId}}'
+order: 6500
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('404 Not Found', () => pm.response.to.have.status(404));
+      pm.test("someone else's call is as if it didn't exist", () => {
+        pm.expect((pm.response.json().error || {}).code).to.eql('NOT_FOUND');
+      });

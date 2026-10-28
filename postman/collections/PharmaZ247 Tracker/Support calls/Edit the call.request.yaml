@@ -1,0 +1,30 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/support-calls/{{callId}}'
+order: 7500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "callerType": "doctor",
+      "callerName": "Dr. Tanvir Ahmed (Cardiology)",
+      "phone": "01711-234567",
+      "problemTitle": "Saturday slots not showing",
+      "description": "Patients can't see the Saturday slots in the app. Checked the chamber settings.",
+      "status": "open"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const call = pm.response.json().data || {};
+      pm.test('saves the changes and keeps the moment of the call', () => {
+        pm.expect(call.callerName).to.eql('Dr. Tanvir Ahmed (Cardiology)');
+        pm.expect(call.problemTitle).to.eql('Saturday slots not showing');
+        pm.expect(call.status).to.eql('open');
+        pm.expect(Date.now() - new Date(call.calledAt).getTime()).to.be.below(5 * 60_000);
+      });

@@ -1,0 +1,18 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/support-calls'
+order: 6000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test("lists their own call, not the admin's", () => {
+        pm.expect(data.map((call) => call.id)).to.eql([pm.collectionVariables.get('callId')]);
+      });
+      pm.test('counts it as open, on the first page', () => {
+        pm.expect(meta.counts).to.eql({ all: 1, open: 1, resolved: 0 });
+        pm.expect(meta.page).to.eql(1);
+        pm.expect(meta.total).to.eql(1);
+      });

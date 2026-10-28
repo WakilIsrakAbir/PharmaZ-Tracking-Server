@@ -1,0 +1,7 @@
+$kind: collection
+description: |-
+  The support team's call log. The admin adds a support member and logs a call of their own. The
+  support member signs in, chooses a password, logs a call, sees only their own call, can't reach the
+  onboarding side (doctors, the calendar) nor the admin's call, and edits, resolves and deletes their
+  own call. A marketer gets 403 on the call log. The admin sees every call, with who logged it.
+order: 5000

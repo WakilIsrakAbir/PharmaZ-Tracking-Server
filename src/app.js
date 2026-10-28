@@ -11,13 +11,14 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
 import { connectDB, database, env } from './config.js';
-import { requireAdmin, requireAuth } from './middleware/auth.js';
+import { requireAdmin, requireAuth, requireRole } from './middleware/auth.js';
 import { ApiError, errorHandler, notFound } from './middleware/errors.js';
 import { Doctor, doctorInput } from './models/Doctor.js';
 import { Pharmacy, pharmacyInput } from './models/Pharmacy.js';
 import authRoutes from './routes/auth.js';
 import calendarRoutes from './routes/calendar.js';
 import { recordRoutes } from './routes/records.js';
+import supportCallRoutes from './routes/supportCalls.js';
 import userRoutes from './routes/users.js';
 
 const app = express();
@@ -40,12 +41,15 @@ api.use((req, res, next) => {
 });
 
 api.get('/health', (req, res) => res.json({ ok: true }));
-api.use('/auth', authRoutes);                                               // sign in / out, me, password
-api.use('/users', requireAuth, requireAdmin, userRoutes);                   // team accounts (admin only)
-// Doctors, pharmacies and the calendar: marketing people only get the forms they submitted or were assigned to.
-api.use('/doctors', requireAuth, recordRoutes(Doctor, doctorInput));        // doctor onboarding forms
-api.use('/pharmacies', requireAuth, recordRoutes(Pharmacy, pharmacyInput)); // pharmacy onboarding forms
-api.use('/calendar', requireAuth, calendarRoutes);                          // visits in a date range
+api.use('/auth', authRoutes);                                                           // sign in / out, me, password
+api.use('/users', requireAuth, requireAdmin, userRoutes);                               // team accounts (admin only)
+// Onboarding: admins and the marketing team (marketing people only get the forms they submitted or were assigned to).
+const onboarding = requireRole('admin', 'marketing');
+api.use('/doctors', requireAuth, onboarding, recordRoutes(Doctor, doctorInput));        // doctor onboarding forms
+api.use('/pharmacies', requireAuth, onboarding, recordRoutes(Pharmacy, pharmacyInput)); // pharmacy onboarding forms
+api.use('/calendar', requireAuth, onboarding, calendarRoutes);                          // visits in a date range
+// Support: admins and the support team (support people only get the calls they logged).
+api.use('/support-calls', requireAuth, requireRole('admin', 'support'), supportCallRoutes); // the call log
 
 app.use('/api/v1', api);
 

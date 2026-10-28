@@ -1,0 +1,30 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/support-calls?status=resolved&type=doctor&search=slots'
+order: 8200
+queryParams:
+  - key: status
+    value: resolved
+  - key: type
+    value: doctor
+  - key: search
+    value: slots
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('finds the resolved doctor call by a word of its title', () => {
+        pm.expect(data.map((call) => call.id)).to.eql([pm.collectionVariables.get('callId')]);
+        pm.expect(meta.total).to.eql(1);
+      });
+      pm.test('the counts follow the search and the type, but not the status', () => {
+        pm.expect(meta.counts).to.eql({ all: 1, open: 0, resolved: 1 });
+      });
+      pm.test('the open tab is empty now', async () => {
+        const response = await pm.sendRequest({ url: `${pm.variables.get('baseUrl')}/support-calls?status=open`, method: 'GET' });
+        pm.expect(response.code).to.eql(200);
+        pm.expect(response.json().data).to.eql([]);
+        pm.expect(response.json().meta.total).to.eql(0);
+      });

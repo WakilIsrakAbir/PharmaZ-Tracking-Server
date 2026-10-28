@@ -1,0 +1,12 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar/months?year=2026'
+order: 7200
+queryParams:
+  - key: year
+    value: '2026'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 Forbidden', () => pm.response.to.have.status(403));

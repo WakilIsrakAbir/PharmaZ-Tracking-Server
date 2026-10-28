@@ -8,9 +8,14 @@ import { env } from './config.js';
 // ---------------------------------------------------------------------------
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
 // ---------------------------------------------------------------------------
-export const ROLES = ['admin', 'marketing'];
+export const ROLES = ['admin', 'marketing', 'support'];
 export const STATUSES = ['demo', 'ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
 export const STATUS_MESSAGE = 'Status must be Demo, Ongoing, Setup, Implementation or Support.';
+
+// The support team's call log (routes/supportCalls.js)
+export const CALLER_TYPES = ['doctor', 'pharmacy'];   // who called
+export const CALL_STATUSES = ['open', 'resolved'];
+export const CALL_STATUS_MESSAGE = 'Status must be Open or Resolved.';
 
 // ---------------------------------------------------------------------------
 // Days in Dhaka time (visits are planned by the calendar day in Bangladesh)
@@ -176,6 +181,16 @@ export function searchFilter(search, fields) {
   const digits = search.replace(/\D/g, '').replace(/^0/, '');
   if (digits.length >= 3) or.push({ phone: new RegExp(digits) });
   return { $or: or };
+}
+
+// A MongoDB filter for a date field between two Dhaka days, both included (either may be left out):
+// dayRange('visitDate', '2026-10-01', '2026-10-31'). Dhaka has no daylight saving, so a day is always 24 hours.
+export function dayRange(field, from, to) {
+  if (!from && !to) return {};
+  const range = {};
+  if (from) range.$gte = startOfDhakaDay(from);
+  if (to) range.$lt = new Date(startOfDhakaDay(to).getTime() + 24 * 60 * 60 * 1000);
+  return { [field]: range };
 }
 
 // Every list comes in pages: ?page=2&limit=20. Twenty per page unless asked, at most a hundred.

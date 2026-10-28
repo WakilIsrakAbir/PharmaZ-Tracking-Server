@@ -1,0 +1,36 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/support-calls'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "callerType": "pharmacy",
+      "callerName": "Rahman Pharmacy",
+      "phone": "01811-223344",
+      "problemTitle": "App not opening",
+      "description": "Shows a blank screen after sign-in."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const call = pm.response.json().data || {};
+      pm.test('reads the fields that were sent, with the phone in E.164', () => {
+        pm.expect(call.callerType).to.eql('pharmacy');
+        pm.expect(call.callerName).to.eql('Rahman Pharmacy');
+        pm.expect(call.phone).to.eql('+8801811223344');
+        pm.expect(call.problemTitle).to.eql('App not opening');
+      });
+      pm.test('starts open, logged now, by the admin', () => {
+        pm.expect(call.status).to.eql('open');
+        pm.expect(call.resolvedAt).to.eql(null);
+        pm.expect(Date.now() - new Date(call.calledAt).getTime()).to.be.below(60_000);
+        pm.expect(call.createdBy && call.createdBy.id).to.eql(pm.collectionVariables.get('adminId'));
+      });
+      if (call.id) pm.collectionVariables.set('adminCallId', call.id);

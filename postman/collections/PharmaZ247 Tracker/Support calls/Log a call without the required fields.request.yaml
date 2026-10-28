@@ -1,0 +1,23 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/support-calls'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "description": "Only a description."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      const error = pm.response.json().error || {};
+      pm.test('names every missing field', () => {
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.include.all.keys('callerType', 'callerName', 'phone', 'problemTitle');
+      });

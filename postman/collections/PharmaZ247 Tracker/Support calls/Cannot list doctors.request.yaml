@@ -1,0 +1,12 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors'
+order: 7000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 Forbidden', () => pm.response.to.have.status(403));
+      pm.test('the onboarding side is closed to the support team', () => {
+        pm.expect((pm.response.json().error || {}).code).to.eql('FORBIDDEN');
+      });

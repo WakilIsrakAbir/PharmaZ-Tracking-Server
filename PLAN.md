@@ -17,7 +17,8 @@
 4. **Lists:** all doctors and all pharmacies, a page at a time, with status tabs, search and filters (assigned to, submitted by, visit date, order), each opening a full page. The Team page works the same way.
 5. **Who sees what:** a marketing person sees the forms they submitted and the forms assigned to them: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it and who is assigned.
 7. **Assigning:** an admin assigns people to a form by email address (**Assign** in the Status card): teammates from a list, or anyone outside the team by name and email address (the name is saved and shown). A teammate then sees the form; an outside address only gets the emails. Each newly assigned person gets an **email with the whole form** (every numbered field, the status, the visit, the address with a map link, the notes, the steps, who submitted it, and a link to open it in the tracker). The history records "Assigned to …" / "No longer assigned: …". Whenever the form is **edited**, everyone assigned gets the new version by email. People can be added or removed at any time. This is also how a form moves to someone else when a person leaves.
-6. **Accounts:** only the admin creates accounts (Team page), with a name, email and phone number (all three required). There is no sign-up. New people get a temporary password and choose their own at first sign-in.
+6. **Accounts:** only the admin creates accounts (Team page), with a name, email and phone number (all three required), as an admin, a marketing person or a support person. There is no sign-up. New people get a temporary password and choose their own at first sign-in.
+8. **Support calls:** the support team's own side (`/support-calls`): a support person logs the calls that come in from doctors and pharmacies that are already live (who called, name, phone, the problem, when; *Open* until solved, then *Resolved*) and sees only the calls they logged, in a log with tabs, search, filters and pages. Admins see every call, with who logged it. Support people see nothing of the onboarding side, and marketing people nothing of the calls. See section 9.
 
 ## 2. Pages
 
@@ -30,8 +31,13 @@
 | `/doctors/new` · `/pharmacies/new` | The forms, opened from the dashboard (`?date=2026-10-21` pre-fills the visit date) | signed in |
 | `/doctors/:id` · `/pharmacies/:id` | Full page for one form | signed in |
 | `/doctors/:id/edit` · `/pharmacies/:id/edit` | Edit a submitted form | signed in |
+| `/support-calls` | **Call log:** the support team's calls, a page at a time, with Open / Resolved tabs, search and filters (`?status=open&type=doctor&when=week&page=2`) | admin, support |
+| `/support-calls/new` | **Log a call** | admin, support |
+| `/support-calls/:id` · `/support-calls/:id/edit` | One call (resolve, reopen, edit, delete) / edit it | admin, support (own calls) |
 | `/team` | Add teammates, change roles, reset passwords, deactivate | admin |
 | `/account` | Your details, change password | signed in |
+
+"Signed in" above means admins and marketing people: the support team only has the call log and the account page, and is sent to the call log from anywhere else (marketing people are sent to the dashboard from the call log).
 
 ## 3. The forms
 
@@ -88,8 +94,14 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
 | GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |
 | GET | `/calendar/months?year=` | signed in | How many visits each month of a year has (for the year overview) |
+| GET · POST | `/support-calls` | admin, support | The call log, a page at a time (`?search=&status=&type=&createdBy=&from=&to=&sort=&page=&limit=`, with open / resolved counts) / log a call |
+| GET · PUT | `/support-calls/:id` | admin, support (own) | One call / save the edited call |
+| PATCH | `/support-calls/:id/status` | admin, support (own) | Open ↔ Resolved |
+| DELETE | `/support-calls/:id` | admin, support (own) | Delete the call |
 
-**Who sees what:** for a marketing user, the lists, the calendar, single forms and status updates only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates).
+"Signed in" above means admins and marketing people: `/doctors`, `/pharmacies` and `/calendar` answer `403` for the support team, and `/support-calls` answers `403` for marketing people (`requireRole` in `middleware/auth.js`, wired in `app.js`).
+
+**Who sees what:** for a marketing user, the lists, the calendar, single forms and status updates only include the forms they submitted or were assigned to. Anyone else's form answers `404`, as if it didn't exist. Admins see everything. Every form includes `createdBy` (the name and phone number of the person who submitted it) and `assignedTo` (the assigned teammates). The call log works the same way for a support person: only the calls they logged, anyone else's answers `404`.
 
 **Email:** over SMTP (Gmail, Google Workspace or Brevo; the `SMTP_*` settings in `.env` decide). Without those settings the API sends nothing and says so in its answer (`meta.email.configured: false`), so everything else keeps working.
 
@@ -101,8 +113,8 @@ Forms are sent as JSON. Errors always look like `{ error: { code, message, field
 - **Session:** a signed token in an httpOnly cookie (scripts in the page can't read it), valid for 7 days. A password change, reset or deactivation ends old sessions straight away.
 - **Sign-in limit:** 5 failed tries per email every 15 minutes.
 - **Passwords:** any password is allowed, even a short one. It just can't be empty (and 72 characters is the most). A new password must be different from the current one, so the temporary password from the admin always gets replaced.
-- **Checks:** every request is checked by the API, not just the screens. Marketing users can't open `/team`, and the API refuses their admin actions too.
-- **Own forms only:** marketing users can only see and change the forms they submitted or were assigned to. The API applies this to every request, so it can't be worked around from the browser.
+- **Checks:** every request is checked by the API, not just the screens. Marketing users can't open `/team`, support users can't open the onboarding pages, and the API refuses those requests too (`403`).
+- **Own forms only:** marketing users can only see and change the forms they submitted or were assigned to; support users only the calls they logged. The API applies this to every request, so it can't be worked around from the browser.
 - **Personal data:** phones, emails and BMDC numbers need a sign-in. Nothing is public.
 
 ## 7. Built with
@@ -125,9 +137,9 @@ Forms are sent as JSON. Errors always look like `{ error: { code, message, field
 2. **Status:** *Support* was added after *Implementation* (23 Oct 2026). Is a *Dropped* status (talks ended) needed too?
 3. ~~When someone leaves~~: solved by assigning (23 Oct 2026): an admin assigns the form to someone else.
 
-## 9. Planned: support calls (decided 28 Oct 2026, not built yet)
+## 9. Support calls (decided and built 28 Oct 2026)
 
-A second job for the tracker, beside onboarding: the **support team** logs the calls that come in from doctors and pharmacies that are already live. Decided with the team on 28 Oct 2026:
+A second job for the tracker, beside onboarding: the **support team** logs the calls that come in from doctors and pharmacies that are already live. Decided with the team on 28 Oct 2026, and built the same day as described here:
 
 | Decision | Choice |
 |---|---|
@@ -177,11 +189,10 @@ Shared pieces reused as they are: `PageHeader`, `Pagination`, `Select`, `useUrlP
 
 **Tests and docs.** A Postman folder *Support calls*: the admin adds a support member → they sign in and choose a password → log a call → see it in their log → can't list doctors (`403`) → can't open another person's call (`404`) → edit, resolve and delete their own → the admin sees every call with who logged it → a marketer gets `403` → clean up. The contract gets a *Support calls* tag; FEATURES, TASKS and this file get a section.
 
-**Order of work.** (1) The support role and the access rules, end to end. (2) The API with its tests. (3) The three screens. (4) Docs. Nothing that exists changes for marketers or admins, except the Team page offering the new role and the admin's sidebar gaining the call log.
+**What changed elsewhere.** The role list and `requireRole` (API), the sidebar menu per role, `Protected` with the roles that may open a page (`ONBOARDING_ROLES`, `SUPPORT_ROLES` in `lib/constants.js`), the page after sign-in (`homePage`), the Team page's role choice ("Change role" now offers the other two roles), and the API's role checks. Nothing changed for marketers, and admins only gained the call log in their menu.
 
 ## 10. Next steps
 
-- **Support calls:** see section 9.
 - **Going live:** done on Vercel (23 Oct 2026): the API at pharma-z-tracking-server.vercel.app, the web app deployed from the client repository. See the README, "Going live on Vercel".
 - **Email:** set the `SMTP_*` settings on the API's Vercel project so assignment emails go out (see the README).
 - **Nice to have:**

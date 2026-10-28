@@ -90,6 +90,30 @@ variables:
   - key: firstStepDoneAt
     value: ''
     description: When the first step was ticked off, set by "Track the implementation steps".
+  - key: tomorrowDay
+    value: ''
+    description: The Dhaka day of the sample doctor's visit, set before "Doctors visited on one day".
+  - key: supportUserEmail
+    value: ''
+    description: A fresh email for every run, set before "Add a support member".
+  - key: supportUserId
+    value: ''
+    description: Set by "Add a support member".
+  - key: supportUserTempPassword
+    value: ''
+    description: The temporary password returned by "Add a support member".
+  - key: supportUserPassword
+    value: ''
+    description: The password the support member chooses.
+  - key: adminCallId
+    value: ''
+    description: The call the admin logs, set by "Admin logs a call".
+  - key: callId
+    value: ''
+    description: The call the support member logs, set by "Log a call".
+  - key: futureCall
+    value: ''
+    description: A moment tomorrow, set before "Log a call from the future".
 scripts:
   - type: http:afterResponse
     language: text/javascript

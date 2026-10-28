@@ -21,11 +21,15 @@ export async function requireAuth(req, res, next) {
   next();
 }
 
-// Use after requireAuth.
-export function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') throw new ApiError(403, "You don't have permission to do that.");
-  next();
-}
+// Use after requireAuth: only people with one of these roles may go on, e.g. requireRole('admin', 'support').
+export const requireRole =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user?.role)) throw new ApiError(403, "You don't have permission to do that.");
+    next();
+  };
+
+export const requireAdmin = requireRole('admin');
 
 // 5 failed sign-in attempts per email + IP address every 15 minutes. Successful sign-ins don't count.
 export const loginLimiter = rateLimit({

@@ -1,6 +1,6 @@
 # PharmaZ247 Tracker: API (server)
 
-The Express API behind the PharmaZ247 Tracker, an internal app for the PharmaZ247 marketing team. After visiting a doctor or a pharmacy, a team member fills in the onboarding form, and the form shows up on a shared calendar with its status. This API handles sign-in, team accounts, the doctor and pharmacy forms (with status history and implementation steps), and the calendar.
+The Express API behind the PharmaZ247 Tracker, an internal app for the PharmaZ247 marketing team. After visiting a doctor or a pharmacy, a team member fills in the onboarding form, and the form shows up on a shared calendar with its status. This API handles sign-in, team accounts, the doctor and pharmacy forms (with status history and implementation steps), the calendar, and the support team's call log.
 
 The web app is in **[PharmaZ-Tracking-Client](https://github.com/WakilIsrakAbir/PharmaZ-Tracking-Client)**.
 
@@ -18,8 +18,8 @@ src/
 ├── config.js       settings + database connection
 ├── utils.js        passwords, sign-in sessions, phone numbers, validation rules
 ├── email.js        the assignment email (SMTP)
-├── models/         User, Doctor, Pharmacy (+ the shared visit, status and steps fields)
-├── routes/         auth, users, records (doctors & pharmacies), calendar
+├── models/         User, Doctor, Pharmacy (+ the shared visit, status and steps fields), SupportCall
+├── routes/         auth, users, records (doctors & pharmacies), calendar, supportCalls
 └── middleware/     sign-in checks, errors
 api/index.js        starts the API on Vercel (see "Going live")
 vercel.json         tells Vercel to send every request to api/index.js
@@ -42,7 +42,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 |---|---|
 | `npm run dev` | Starts the API on http://localhost:4000 with nodemon, which restarts it when a file in `src/` or `.env` changes. An old copy still using port 4000 is stopped first. If MongoDB can't be reached, it says why and keeps trying |
 | `npm start` | Starts the API without watching files (for hosting) |
-| `npm run test:api` | Runs the 98 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
+| `npm run test:api` | Runs the 125 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
 | `npm run seed:admin` | Creates the first admin from `.env` (safe to run twice) |
 | `npm run db` | Starts a local MongoDB, only when `MONGODB_URI` points at this computer |
 

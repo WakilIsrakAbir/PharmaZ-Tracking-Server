@@ -1,0 +1,33 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/support-calls'
+order: 5500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "callerType": "doctor",
+      "callerName": "Dr. Tanvir Ahmed",
+      "phone": "01711-234567",
+      "problemTitle": "Slots not showing",
+      "description": "Patients can't see the Saturday slots in the app."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const call = pm.response.json().data || {};
+      pm.test('logged open, now, by the support member (with their name and phone)', () => {
+        pm.expect(call.callerType).to.eql('doctor');
+        pm.expect(call.status).to.eql('open');
+        pm.expect(call.resolvedAt).to.eql(null);
+        pm.expect(Date.now() - new Date(call.calledAt).getTime()).to.be.below(60_000);
+        pm.expect(call.createdBy && call.createdBy.id).to.eql(pm.collectionVariables.get('supportUserId'));
+        pm.expect(call.createdBy.name).to.eql('Support QA Member');
+        pm.expect(call.createdBy.phone).to.eql('+8801611223344');
+      });
+      if (call.id) pm.collectionVariables.set('callId', call.id);

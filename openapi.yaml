@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: PharmaZ247 Tracker API
-  version: 3.2.0
+  version: 3.3.0
   summary: Internal API behind the PharmaZ247 Tracker web app.
   description: |
     The PharmaZ247 Tracker lets the marketing team fill in onboarding forms for the doctors and
@@ -19,8 +19,10 @@ info:
     `GET /health`, `POST /auth/login` and `POST /auth/logout`. There is no sign-up route: only an
     admin can create accounts (`POST /users`).
 
-    **Roles.** `admin` can do everything. `marketing` can do everything except manage team accounts
-    and delete doctors or pharmacies.
+    **Roles.** `admin` can do everything. `marketing` can do everything on the onboarding side
+    except manage team accounts and delete doctors or pharmacies. `support` only uses the call log
+    (`/support-calls`): the onboarding routes answer `403` for them, and the call log answers `403`
+    for marketing users.
 
     **Who sees what.** A marketing user only sees the records they submitted (`createdBy`) or were
     assigned to (`assignedTo`): in the lists, the calendar, single records and status updates.
@@ -120,6 +122,8 @@ tags:
     description: Pharmacy onboarding forms. The field list is a draft until the pharmacy paper form is confirmed.
   - name: Calendar
     description: Every doctor and pharmacy visit in a date range, for the calendar on the dashboard.
+  - name: Support calls
+    description: The support team's call log, for calls from doctors and pharmacies that are already live. Support people and admins only.
 
 paths:
   /health:
@@ -1082,6 +1086,192 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /support-calls:
+    get:
+      tags: [Support calls]
+      operationId: listSupportCalls
+      summary: List support calls
+      description: |
+        One page of the call log, latest call first unless `sort` says otherwise. A support person
+        gets only the calls they logged; an admin gets every call, with who logged it.
+
+        The filters can be combined: `search` (the caller's name, the problem title, the phone
+        number's digits), `status`, `type` (doctor or pharmacy), `createdBy` (who logged it), and
+        `from` / `to` (the day the call came in, in Dhaka, both included). `meta.counts` says how
+        many calls are open and resolved, for the tabs above the list; it follows every filter but
+        `status`. `meta.total` is the number of calls on all the pages: the open tab's count.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/CallStatusFilter'
+        - $ref: '#/components/parameters/CallerTypeFilter'
+        - $ref: '#/components/parameters/CreatedByFilter'
+        - $ref: '#/components/parameters/CalledFrom'
+        - $ref: '#/components/parameters/CalledTo'
+        - $ref: '#/components/parameters/CallSort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: One page of the matching calls.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCallListResponse'
+              examples:
+                log:
+                  $ref: '#/components/examples/SupportCallList'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Support calls]
+      operationId: createSupportCall
+      summary: Log a support call
+      description: |
+        A support person (or an admin) logs a call. The person who sends it becomes `createdBy`
+        (their name and phone number come from their account). `calledAt` is now unless the form
+        says otherwise, and can't be in the future. `status` starts as `open` unless the form says
+        otherwise; a call logged as `resolved` gets `resolvedAt` straight away.
+      requestBody:
+        $ref: '#/components/requestBodies/SupportCallForm'
+      responses:
+        '201':
+          description: The call was logged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCallResponse'
+              examples:
+                logged:
+                  $ref: '#/components/examples/SupportCallOpen'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /support-calls/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    get:
+      tags: [Support calls]
+      operationId: getSupportCall
+      summary: Get one support call
+      description: For a support person, someone else's call answers `404`, exactly as if it didn't exist. An admin can open any call.
+      responses:
+        '200':
+          description: The call.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCallResponse'
+              examples:
+                call:
+                  $ref: '#/components/examples/SupportCallOpen'
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Support calls]
+      operationId: updateSupportCall
+      summary: Save an edited support call
+      description: |
+        The whole form again. Leaving `calledAt` out keeps the saved moment. Setting `status` to
+        `resolved` records when (`resolvedAt`); back to `open` clears it. The same rules on who may
+        edit as `GET /support-calls/{id}`.
+      requestBody:
+        $ref: '#/components/requestBodies/SupportCallForm'
+      responses:
+        '200':
+          description: The saved call.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCallResponse'
+              examples:
+                saved:
+                  $ref: '#/components/examples/SupportCallResolved'
+        '400':
+          $ref: '#/components/responses/FormError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Support calls]
+      operationId: deleteSupportCall
+      summary: Delete a support call
+      description: A support person may delete the calls they logged; an admin any call. A deleted call can't be brought back.
+      responses:
+        '204':
+          description: Deleted.
+        '400':
+          $ref: '#/components/responses/BadId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /support-calls/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    patch:
+      tags: [Support calls]
+      operationId: changeSupportCallStatus
+      summary: Mark a call resolved, or reopen it
+      description: '"Mark as resolved" and "Reopen" in the web app. Resolving records `resolvedAt`; reopening clears it.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CallStatusChangeRequest'
+            example:
+              status: resolved
+      responses:
+        '200':
+          description: The call, with its new status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCallResponse'
+              examples:
+                resolved:
+                  $ref: '#/components/examples/SupportCallResolved'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1213,7 +1403,50 @@ components:
         maximum: 100
         default: 20
 
+    CallStatusFilter:
+      name: status
+      in: query
+      description: Only calls in this status.
+      schema:
+        $ref: '#/components/schemas/CallStatus'
+    CallerTypeFilter:
+      name: type
+      in: query
+      description: Only calls from doctors, or only from pharmacies.
+      schema:
+        $ref: '#/components/schemas/CallerType'
+    CalledFrom:
+      name: from
+      in: query
+      description: Only calls that came in on this day (in Dhaka) or later.
+      schema:
+        $ref: '#/components/schemas/Day'
+    CalledTo:
+      name: to
+      in: query
+      description: Only calls that came in on this day (in Dhaka) or earlier.
+      schema:
+        $ref: '#/components/schemas/Day'
+    CallSort:
+      name: sort
+      in: query
+      description: 'The order of the log: `called_desc` (the latest call first, the default), `called_asc`, `name` (the caller, A to Z, whatever the case) or `updated` (last changed first).'
+      schema:
+        type: string
+        enum: [called_desc, called_asc, name, updated]
+        default: called_desc
+
   requestBodies:
+    SupportCallForm:
+      required: true
+      description: The call, as JSON.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SupportCallForm'
+          examples:
+            call:
+              $ref: '#/components/examples/SupportCallFormExample'
     DoctorForm:
       required: true
       description: The doctor form, as JSON.
@@ -1451,10 +1684,11 @@ components:
       examples: ['Mango-4821-River']
     Role:
       type: string
-      enum: [admin, marketing]
+      enum: [admin, marketing, support]
       description: |
-        - `admin`: everything, including team accounts and deleting records
+        - `admin`: everything, including team accounts, deleting records, and every support call
         - `marketing`: fills in and updates doctor and pharmacy forms
+        - `support`: logs support calls and sees only their own; nothing on the onboarding side
     OnboardingStatus:
       type: string
       enum: [demo, ongoing, setup, implementation, support]
@@ -2084,7 +2318,7 @@ components:
           description: The visit date and time. ISO 8601 is best, for example `2026-10-21T11:00:00.000Z`.
         status:
           $ref: '#/components/schemas/OnboardingStatus'
-          default: ongoing
+          default: demo
         notes:
           type: string
     DoctorForm:
@@ -2227,6 +2461,120 @@ components:
           description: Sorted by `visitDate`, soonest first.
           items:
             $ref: '#/components/schemas/CalendarItem'
+
+    # ---------- Support calls ----------
+    CallerType:
+      type: string
+      enum: [doctor, pharmacy]
+      description: Who called.
+    CallStatus:
+      type: string
+      enum: [open, resolved]
+      description: '`open` until the problem is solved, then `resolved`.'
+    SupportCall:
+      type: object
+      description: One call to the support team.
+      required: [id, callerType, callerName, phone, problemTitle, description, status, resolvedAt, calledAt, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        callerType:
+          $ref: '#/components/schemas/CallerType'
+        callerName:
+          type: string
+        phone:
+          $ref: '#/components/schemas/Phone'
+        problemTitle:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/CallStatus'
+        resolvedAt:
+          description: When the call became resolved; `null` while open.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+        calledAt:
+          $ref: '#/components/schemas/DateTime'
+          description: When the call came in.
+        createdBy:
+          description: The support person (or admin) who logged the call, with their phone number.
+          anyOf:
+            - $ref: '#/components/schemas/Submitter'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    SupportCallForm:
+      type: object
+      description: 'A call, as the web app sends it. Required: who called, their name and phone, and the problem title.'
+      required: [callerType, callerName, phone, problemTitle]
+      properties:
+        callerType:
+          $ref: '#/components/schemas/CallerType'
+        callerName:
+          type: string
+          minLength: 2
+          maxLength: 120
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+        problemTitle:
+          type: string
+          minLength: 2
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: '#/components/schemas/CallStatus'
+          default: open
+        calledAt:
+          $ref: '#/components/schemas/DateTime'
+          description: When the call came in. Now when left out; never in the future.
+    CallStatusChangeRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/CallStatus'
+    SupportCallResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/SupportCall'
+    SupportCallListMeta:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [counts]
+          properties:
+            counts:
+              type: object
+              description: How many calls are open and resolved. Follows every filter but `status`, so both tabs keep their numbers.
+              required: [all, open, resolved]
+              properties:
+                all:
+                  type: integer
+                  minimum: 0
+                open:
+                  type: integer
+                  minimum: 0
+                resolved:
+                  type: integer
+                  minimum: 0
+    SupportCallListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportCall'
+        meta:
+          $ref: '#/components/schemas/SupportCallListMeta'
 
   examples:
     AdminUser:
@@ -2651,3 +2999,92 @@ components:
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan
+    SupportCallFormExample:
+      summary: A pharmacy calls about the app
+      value:
+        callerType: pharmacy
+        callerName: Rahman Pharmacy
+        phone: '01811-223344'
+        problemTitle: App not opening
+        description: Shows a blank screen after sign-in.
+    SupportCallOpen:
+      summary: A call just logged
+      value:
+        data:
+          id: '6718e1a0c2b1e45d8a0f6a01'
+          callerType: pharmacy
+          callerName: Rahman Pharmacy
+          phone: '+8801811223344'
+          problemTitle: App not opening
+          description: Shows a blank screen after sign-in.
+          status: open
+          resolvedAt: null
+          calledAt: '2026-10-28T09:12:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a05'
+            name: Sumi Akter
+            phone: '+8801611223344'
+          createdAt: '2026-10-28T09:12:30.000Z'
+          updatedAt: '2026-10-28T09:12:30.000Z'
+    SupportCallResolved:
+      summary: The same call, resolved
+      value:
+        data:
+          id: '6718e1a0c2b1e45d8a0f6a01'
+          callerType: pharmacy
+          callerName: Rahman Pharmacy
+          phone: '+8801811223344'
+          problemTitle: App not opening
+          description: Shows a blank screen after sign-in. Fixed by signing out and in again.
+          status: resolved
+          resolvedAt: '2026-10-28T09:40:00.000Z'
+          calledAt: '2026-10-28T09:12:00.000Z'
+          createdBy:
+            id: '6717a3f9c2b1e45d8a0f1a05'
+            name: Sumi Akter
+            phone: '+8801611223344'
+          createdAt: '2026-10-28T09:12:30.000Z'
+          updatedAt: '2026-10-28T09:40:00.000Z'
+    SupportCallList:
+      summary: The call log, with counts for the Open / Resolved tabs
+      value:
+        data:
+          - id: '6718e1a0c2b1e45d8a0f6a01'
+            callerType: pharmacy
+            callerName: Rahman Pharmacy
+            phone: '+8801811223344'
+            problemTitle: App not opening
+            description: Shows a blank screen after sign-in.
+            status: open
+            resolvedAt: null
+            calledAt: '2026-10-28T09:12:00.000Z'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a05'
+              name: Sumi Akter
+              phone: '+8801611223344'
+            createdAt: '2026-10-28T09:12:30.000Z'
+            updatedAt: '2026-10-28T09:12:30.000Z'
+          - id: '6718d2b1c2b1e45d8a0f6a00'
+            callerType: doctor
+            callerName: Dr. Tanvir Ahmed (Cardiology)
+            phone: '+8801711234567'
+            problemTitle: Saturday slots not showing
+            description: ''
+            status: resolved
+            resolvedAt: '2026-10-27T15:05:00.000Z'
+            calledAt: '2026-10-27T14:30:00.000Z'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a05'
+              name: Sumi Akter
+              phone: '+8801611223344'
+            createdAt: '2026-10-27T14:31:00.000Z'
+            updatedAt: '2026-10-27T15:05:00.000Z'
+        meta:
+          counts:
+            all: 2
+            open: 1
+            resolved: 1
+          page: 1
+          limit: 20
+          total: 2
+          pages: 1

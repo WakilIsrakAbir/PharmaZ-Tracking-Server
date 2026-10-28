@@ -25,7 +25,7 @@ import {
 //   POST   /:id/reset-password  new temporary password
 const router = Router();
 
-const role = z.enum(ROLES, { error: 'Role must be admin or marketing.' });
+const role = z.enum(ROLES, { error: 'Role must be admin, marketing or support.' });
 const idParams = z.object({ id: objectId });
 
 const listQuery = z.object({

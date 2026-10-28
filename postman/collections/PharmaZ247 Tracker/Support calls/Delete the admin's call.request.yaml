@@ -1,0 +1,9 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/support-calls/{{adminCallId}}'
+order: 11000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('204 No Content', () => pm.response.to.have.status(204));

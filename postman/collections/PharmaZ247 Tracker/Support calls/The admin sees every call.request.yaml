@@ -1,0 +1,27 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/support-calls?sort=name'
+order: 10500
+queryParams:
+  - key: sort
+    value: name
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test("includes the admin's own call (the support member's was deleted)", () => {
+        const ids = data.map((call) => call.id);
+        pm.expect(ids).to.include(pm.collectionVariables.get('adminCallId'));
+        pm.expect(ids).to.not.include(pm.collectionVariables.get('callId'));
+        pm.expect(meta.counts.all).to.eql(data.length);
+      });
+      pm.test('every call says who logged it', () => {
+        data.forEach((call) => pm.expect(call.createdBy && call.createdBy.name).to.be.a('string'));
+      });
+      pm.test('the log can be narrowed to one person', async () => {
+        const response = await pm.sendRequest({ url: `${pm.variables.get('baseUrl')}/support-calls?createdBy=${pm.collectionVariables.get('supportUserId')}`, method: 'GET' });
+        pm.expect(response.code).to.eql(200);
+        pm.expect(response.json().data).to.eql([]);
+      });

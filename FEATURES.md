@@ -1,6 +1,6 @@
 # PharmaZ247 Tracker — Feature Overview
 
-*Prepared on 28 October 2026 · Version 8*
+*Prepared on 28 October 2026 · Version 9*
 
 ---
 
@@ -24,8 +24,9 @@ Everything else in the tracker supports these three: the status of each onboardi
 
 | Role | What they do |
 |---|---|
-| **Admin** | Sees every onboarding in the company; assigns who goes to each one; adds and manages the team's accounts; can delete a form. Can also enter and update onboardings like anyone else |
+| **Admin** | Sees every onboarding and every support call in the company; assigns who goes to each onboarding; adds and manages the team's accounts; can delete a form or a call. Can also enter and update onboardings and calls like anyone else |
 | **Marketing person** | Enters onboardings (doctor and pharmacy forms), updates them after each visit, and sees the ones they entered or were assigned to |
+| **Support person** | Logs the calls that come in from doctors and pharmacies that are already live (section 10), and sees only the calls they logged. Nothing else: no calendar, no onboardings, no team |
 
 Only an admin can create accounts. There is no public sign-up, so nobody outside the company can get in.
 
@@ -140,22 +141,36 @@ This is the admin's tool for planning the team's visits.
 
 ---
 
-## 10. Who sees what
+## 10. Support calls
 
-| | Marketing person | Admin |
-|---|---|---|
-| Onboardings they entered | ✓ | ✓ |
-| Onboardings assigned to them | ✓ | ✓ |
-| Everyone else's onboardings | ✗ (hidden completely) | ✓ |
-| Assign who goes | ✗ | ✓ |
-| Add / manage teammates | ✗ | ✓ |
-| Delete an onboarding | ✗ | ✓ |
+The support team's own part of the tracker, for the doctors and pharmacies that are already live and call with a problem. A support person signs in and sees just two menu items:
 
-An onboarding a person may not see simply does not exist for them: not on their calendar, not in their lists, and not reachable by a link.
+- **Log a call** — a short form: who called (*Doctor* or *Pharmacy*), their name and phone, the problem in a few words, a longer description if needed, when the call came in (now, unless it is logged later; never in the future), and the status (*Open*, or *Resolved* if it was solved on the spot). The call is logged under the support person's name and phone, from their account.
+- **Call log** — every call they logged, twenty to a page: who called, the problem, when, and whether it is open or resolved. *Open* / *Resolved* tabs with counts, a search box (name, phone, problem), filters (doctors or pharmacies, when the call came in) and the order, with the same page bar as the other lists. Clicking a call opens it: the problem and description, *Call back* and *WhatsApp* buttons, **Mark as resolved** / **Reopen**, **Edit**, and **Delete**. A resolved call remembers when it was resolved.
+
+**Who sees what:** a support person sees, edits and deletes only the calls they logged. An admin sees every call, with a **Logged by** column and filter, and can do everything. The marketing team doesn't see the call log at all, and the support team doesn't see the calendar or the onboardings.
 
 ---
 
-## 11. Security and data
+## 11. Who sees what
+
+| | Marketing person | Support person | Admin |
+|---|---|---|---|
+| Onboardings they entered | ✓ | ✗ | ✓ |
+| Onboardings assigned to them | ✓ | ✗ | ✓ |
+| Everyone else's onboardings | ✗ (hidden completely) | ✗ | ✓ |
+| Assign who goes | ✗ | ✗ | ✓ |
+| Support calls they logged | ✗ | ✓ | ✓ |
+| Everyone else's support calls | ✗ | ✗ (hidden completely) | ✓ |
+| Add / manage teammates | ✗ | ✗ | ✓ |
+| Delete an onboarding | ✗ | ✗ | ✓ |
+| Delete a support call | ✗ | ✓ (their own) | ✓ |
+
+An onboarding or a call a person may not see simply does not exist for them: not on their calendar, not in their lists, and not reachable by a link.
+
+---
+
+## 12. Security and data
 
 - Everything needs a sign-in; nothing is public. Sessions last 7 days.
 - A new teammate gets a temporary password from the admin and chooses their own at first sign-in. After 5 wrong passwords in 15 minutes, sign-in is paused for that email.
@@ -166,14 +181,14 @@ An onboarding a person may not see simply does not exist for them: not on their 
 
 ---
 
-## 12. Where it runs
+## 13. Where it runs
 
 - The web app and its server run on Vercel, a cloud hosting service, and update automatically whenever a new version is released. Nothing to maintain in the office.
 - If the database is unreachable for a moment, the app shows a calm "trying again" message and recovers by itself.
 
 ---
 
-## 13. Possible next steps
+## 14. Possible next steps
 
 Ideas discussed but not built yet, for the team to decide on:
 
@@ -196,3 +211,5 @@ Ideas discussed but not built yet, for the team to decide on:
 | **Assigned to** | The people the admin sent for this onboarding |
 | **Submitted by** | The person who entered the form |
 | **History** | The list of every change made to an onboarding |
+| **Support call** | A call from a doctor or pharmacy that is already live, logged by the support team; *Open* until the problem is solved, then *Resolved* |
+| **Logged by** | The support person who wrote the call down |

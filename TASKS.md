@@ -2,7 +2,7 @@
 
 What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is ticked only when the task is built **and** tested.
 
-**Status (28 Oct 2026):** the app is live on Vercel. Version 8 made the Doctors, Pharmacies and Team lists load a page at a time, with filters and an order. **Next:** the remaining items under "For you".
+**Status (28 Oct 2026):** the app is live on Vercel. Version 9 added the support team: a Support role, a "Log a call" form and a call log of their own. Version 8 made the lists load a page at a time, with filters. **Next:** the remaining items under "For you".
 
 ---
 
@@ -36,6 +36,12 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 
 ### Lists
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form
+
+### Version 9 (28 Oct 2026): support calls (PLAN.md section 9)
+- [x] The **support** role: created from the Team page like marketers ("Change role" offers the other two roles); only *Log a call*, *Call log* and Account; sign-in lands on the call log; the onboarding pages send them to the call log and the API answers `403`; marketers get `403` on support calls
+- [x] API `/support-calls`: log, list (a page at a time, own calls for support people, all for admins, with open / resolved counts, search, filters and order), one call, edit, Open ↔ Resolved (remembers when), delete (own, or any for admins); a call can't be in the future; contract 3.3.0 + a Postman folder of 27 requests
+- [x] Screens in `components/support-calls/`: **Call log** (tabs, search, filters, pages, "Logged by" for admins), **Log a call** (Doctor / Pharmacy, name, phone, problem, description, call date and time, status), **one call** (call back / WhatsApp, resolve / reopen, edit, delete)
+- [x] FEATURES.md version 9; 125 Postman tests (657 checks) passing
 
 ### Version 8 (28 Oct 2026)
 - [x] **Pages:** the Doctors, Pharmacies and Team lists load twenty rows at a time (10 / 20 / 50 to choose), with "Showing 21–40 of 134", page numbers and ‹ › in a bar that stays at the bottom of the screen; the rows on screen fade while the next page loads; a page that no longer exists falls back to the last one
@@ -84,18 +90,12 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (98 tests, 530 checks as of 28 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (125 tests, 657 checks as of 28 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---
 
 ## ⏭ Next
-
-### Support calls (planned 28 Oct 2026, PLAN.md section 9)
-- [ ] The **support** role: created from the Team page like marketers; only *Log a call*, *Call log* and Account; the API answers `403` elsewhere; marketers get `403` on support calls
-- [ ] API `/support-calls`: log, list (a page at a time, own calls for support people, all for admins), one call, edit, Open ↔ Resolved, delete (own, or any for admins); contract + Postman folder
-- [ ] Screens in `components/support-calls/`: Call log (tabs, search, filters, pages), Log a call (Doctor / Pharmacy, name, phone, problem title, description, called at), one call (resolve, edit, delete)
-- [ ] FEATURES.md version 9
 
 ### For you
 - [ ] Add your own phone number (Team → your row → Edit details), so it shows on the forms you submit

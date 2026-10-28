@@ -11,6 +11,7 @@ import {
   STATUSES,
   STATUS_MESSAGE,
   dayField,
+  dayRange,
   dhakaDay,
   emailField,
   objectId,
@@ -19,7 +20,6 @@ import {
   pageQuery,
   requiredText,
   searchFilter,
-  startOfDhakaDay,
 } from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
@@ -60,8 +60,6 @@ const SORTS = {
   updated: { updatedAt: -1, _id: -1 }, // the last changed first
 };
 
-const DAY = 24 * 60 * 60 * 1000; // Dhaka has no daylight saving, so a day is always 24 hours
-
 // Only the records of these people: submitted by `createdBy`, assigned to `assignee` (or to no one).
 // The ids come in as text; the aggregation that counts the statuses needs real ObjectIds.
 function peopleFilter({ assignee, createdBy }) {
@@ -70,15 +68,6 @@ function peopleFilter({ assignee, createdBy }) {
   if (assignee === 'none') filter.assignedTo = { $size: 0 };
   else if (assignee) filter['assignedTo.user'] = new mongoose.Types.ObjectId(assignee);
   return filter;
-}
-
-// Only the visits between two Dhaka days, both included.
-function visitDateFilter({ from, to }) {
-  if (!from && !to) return {};
-  const visitDate = {};
-  if (from) visitDate.$gte = startOfDhakaDay(from);
-  if (to) visitDate.$lt = new Date(startOfDhakaDay(to).getTime() + DAY);
-  return { visitDate };
 }
 
 // The implementation checklist. The whole list is sent each time; existing steps keep their id.
@@ -130,12 +119,12 @@ export function recordRoutes(Model, input) {
   // One page of the list. The counts per status follow every filter except `status` itself, so the
   // tabs above the list keep their numbers while one of them is open; the page total is that tab's count.
   router.get('/', validate({ query: listQuery }), async (req, res) => {
-    const { search, status, sort, page, limit } = req.valid.query;
+    const { search, status, from, to, sort, page, limit } = req.valid.query;
     const filter = allOf(
       visibleTo(req.user),
       searchFilter(search, Model.searchFields),
       peopleFilter(req.valid.query),
-      visitDateFilter(req.valid.query),
+      dayRange('visitDate', from, to), // the visit's day in Dhaka
     );
 
     const [records, perStatus] = await Promise.all([
