@@ -44,6 +44,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] The tabs, filters and page live in the address (`?status=setup&page=2`), so a refresh, the back button and shared links keep the view (`lib/useUrlParams.js`, also used by the dashboard)
 - [x] API: `GET /doctors`, `/pharmacies` and `/users` take `page`, `limit`, `sort` and their filters (`assignee`, `createdBy`, `from`, `to`; `role`, `active`) and answer `meta: { page, limit, total, pages, counts }`; names sort A to Z whatever the case; contract 3.1.0 and tests updated
 - [x] A new form starts in **Demo** (the first visit), in the form and in the API
+- [x] **Admins may enter an onboarding on a past day** (new form, edit, status update, calendar buttons); the marketing team still plans for today or later, and the API enforces it by role
 - [x] Assign dialog: the outside person's name and email on their own rows; a typed-in outside person is added on Save; after Save a green message says who is assigned and who was emailed, a **red message with the reason** when the address is wrong, the save is refused, email isn't set up, or the mail server refuses someone (`meta.email.failed` now carries `{ name, reason }`; contract 3.2.0)
 
 ### Version 5 (21 Oct 2026)
@@ -56,8 +57,8 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 
 ### Version 7 (27 Oct 2026)
 - [x] **Demo** status before Ongoing (teal), everywhere
-- [x] A visit is today or later: the date pickers start at today, the API refuses a changed visit date in the past (a record keeps an old date)
-- [x] Calendar: past days greyed; their visits can be opened and updated, but no "New … form" for them; the top buttons use today when a past day is picked
+- [x] A visit is today or later for the marketing team: the date pickers start at today, the API refuses a visit date in the past (a record keeps an old date); since 28 Oct 2026 admins may pick any day
+- [x] Calendar: past days greyed; their visits can be opened and updated, but no "New … form" for them for the marketing team; the top buttons use today when a past day is picked (admins get the buttons on past days too)
 - [x] "12 onboardings" beside the month name → **year overview** dialog: every month with its counts, other years with ‹ ›, click a month to open it (`GET /calendar/months`)
 - [x] Photos removed everywhere (27 Oct 2026): the team decided the forms don't need them
 - [x] Lists: an **Assigned to** column (avatars + names); outside assignees get a **name** that is saved and shown everywhere
@@ -83,7 +84,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (97 tests, 525 checks as of 28 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (98 tests, 530 checks as of 28 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---

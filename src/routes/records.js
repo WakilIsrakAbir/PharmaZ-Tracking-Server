@@ -159,7 +159,7 @@ export function recordRoutes(Model, input) {
 
   router.post('/', validate({ body: input }), async (req, res) => {
     const values = req.valid.body;
-    assertVisitNotInPast(values.visitDate);
+    assertVisitNotInPast(req.user, values.visitDate);
     const record = await Model.create({
       ...values,
       createdBy: req.user._id,
@@ -176,7 +176,7 @@ export function recordRoutes(Model, input) {
   router.put('/:id', validate({ params: idParams, body: input }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     const values = req.valid.body;
-    assertVisitNotInPast(values.visitDate, record.visitDate);
+    assertVisitNotInPast(req.user, values.visitDate, record.visitDate);
     const moved = values.status !== record.status || values.visitDate.getTime() !== record.visitDate.getTime();
 
     record.set(values);
@@ -196,7 +196,7 @@ export function recordRoutes(Model, input) {
   router.patch('/:id/status', validate({ params: idParams, body: statusBody }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
     const { status, visitDate = record.visitDate, note, implementationSteps } = req.valid.body;
-    assertVisitNotInPast(visitDate, record.visitDate);
+    assertVisitNotInPast(req.user, visitDate, record.visitDate);
 
     record.status = status;
     record.visitDate = visitDate;
@@ -258,9 +258,11 @@ export function recordRoutes(Model, input) {
 // "Rafi Hasan, sumi@example.com"
 const names = (people) => people.map((person) => person.name).join(', ');
 
-// A visit can't be planned in the past (by the day in Dhaka). A record that already has a past
-// visit keeps it: only a change to another past day is refused.
-function assertVisitNotInPast(visitDate, current = null) {
+// Marketing people plan visits for today or later (by the day in Dhaka); a record that already has
+// a past visit keeps it, only a change to another past day is refused. Admins may enter a visit on
+// any day, including one that already happened (an onboarding entered after the fact).
+function assertVisitNotInPast(user, visitDate, current = null) {
+  if (user.role === 'admin') return;
   const day = dhakaDay(visitDate);
   if (current && dhakaDay(current) === day) return;
   if (day < dhakaDay()) throw ApiError.validation({ visitDate: "The visit date can't be in the past. Pick today or a later day." });

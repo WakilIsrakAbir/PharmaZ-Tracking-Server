@@ -1,0 +1,25 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctor2Id}}/status'
+order: 3600
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "support",
+      "visitDate": "2019-07-27T04:00:00.000Z",
+      "note": "Entered after the fact by the admin"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      pm.test('an admin may put a visit on a day that has passed (a marketer may not: see Doctor forms)', () => {
+        pm.expect(doctor.visitDate).to.eql('2019-07-27T04:00:00.000Z');
+        pm.expect(doctor.status).to.eql('support');
+      });

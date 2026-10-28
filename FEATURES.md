@@ -52,7 +52,7 @@ The admin's main view, and everyone's starting point.
 - **Click a day** → that day's onboardings appear on the right, with name, place, status, who entered it and who is assigned.
 - **Click an onboarding** → its full details open on the right (section 5).
 - **New doctor form / New pharmacy form** at the top open a blank form for the chosen day. These buttons stay in view while scrolling.
-- **Past days are greyed out.** What happened on them can still be opened and updated, but nothing new can be planned there: a visit is always today or a later day.
+- **Past days are greyed out.** What happened on them can still be opened and updated. The marketing team can't plan anything new there (a visit is today or a later day); an admin can, to enter an onboarding that already happened.
 - **The count beside the month name** ("12 onboardings") opens a **year overview**: all twelve months with their numbers (doctors and pharmacies), with arrows to other years. Clicking a month opens it on the calendar.
 - On a laptop the whole month fits the screen and stays put; only the details on the right scroll. On a phone the details appear under the calendar.
 - A busy day shows the first onboarding and "+2 more"; one click lists them all.
@@ -115,7 +115,7 @@ This is the admin's tool for planning the team's visits.
 
 - **Doctor form:** the 15 numbered fields of the paper form, in the same order: name, BMDC number, phone, email, chamber name and address, consultation type, chamber number, slot duration, available days and hours, and the four fees.
 - **Pharmacy form:** 13 fields: name, owner, phone, email, drug and trade licence numbers, address, area, district, opening days and hours, home delivery, payment methods (Cash, bKash, Nagad, Card).
-- Under the fields: the **visit date and time** (this puts it on the calendar; today or later, past days can't be chosen), the **status**, and **notes**.
+- Under the fields: the **visit date and time** (this puts it on the calendar; today or later for the marketing team, while an admin can also pick a day that has passed, for a visit entered after the fact), the **status**, and **notes**.
 - Required fields are marked with *; a clear message appears under any field that needs fixing.
 - The form shows the **name and phone of the person entering it**, taken from their account, so nothing extra has to be typed.
 

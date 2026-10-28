@@ -33,9 +33,10 @@ info:
     (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
     the calendar, a `status`, `createdBy` (the name and phone number of the person who submitted it),
     `assignedTo` (the teammates an admin assigned), `implementationSteps` (a checklist for an implementation that takes several visits), and a
-    `history` of every status and visit-date change. A visit is planned by its day in Dhaka: a new
-    record, or a change of the visit date, must be today or later (`visitDate` answers `400` otherwise);
-    a record that already has a past visit keeps it.
+    `history` of every status and visit-date change. A visit is planned by its day in Dhaka. For
+    marketing users a new record, or a change of the visit date, must be today or later (`visitDate`
+    answers `400` otherwise); a record that already has a past visit keeps it. Admins may put a visit
+    on any day, including one that already happened.
 
     **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears on
     the lists (doctors, pharmacies, users) and after an edit or an assignment (`meta.email`).
