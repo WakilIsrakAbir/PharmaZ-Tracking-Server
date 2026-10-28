@@ -26,10 +26,13 @@ function mailer() {
 }
 
 // Emails the form to each recipient ({ name, email }). Never throws: the result says who got the
-// email and who didn't, so the person who acted can be told ("Saved, but the email to Rafi failed").
+// email and who didn't, and why not, so the person who acted can be told ("Saved, but the email to
+// Rafi couldn't be sent: the mail server refused the address").
 //   reason  'assigned' | 'updated'
 //   by      the signed-in user who assigned or edited (replies go to them)
-//   → { configured, sent: [names], failed: [names] }
+//   → { configured, sent: [names], failed: [{ name, reason }] }
+// "Sent" means the mail server took the email. Whether it lands in the inbox, in spam or bounces is
+// decided later by the recipient's mail service, which the API can't see.
 export async function sendRecordEmails({ record, type, recipients, by, reason }) {
   const report = { configured: env.emailEnabled, sent: [], failed: [] };
   if (recipients.length === 0) return report;
@@ -45,11 +48,20 @@ export async function sendRecordEmails({ record, type, recipients, by, reason })
     const { name } = recipients[index];
     if (result.status === 'fulfilled') report.sent.push(name);
     else {
-      report.failed.push(name);
+      report.failed.push({ name, reason: reasonFor(result.reason) });
       console.error(`✖ Could not email ${name}: ${result.reason?.message ?? result.reason}`);
     }
   });
   return report;
+}
+
+// Why an email couldn't be sent, in words for the person who assigned (nodemailer's error codes).
+function reasonFor(error) {
+  const detail = String(error?.response ?? error?.message ?? error ?? '').replace(/\s+/g, ' ').trim();
+  if (error?.code === 'EAUTH') return "the server's email account login was refused (check SMTP_USER and SMTP_PASS)";
+  if (['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS'].includes(error?.code)) return `the mail server couldn't be reached (${detail})`;
+  if (error?.code === 'EENVELOPE') return `the mail server refused the address (${detail})`;
+  return detail || 'unknown reason';
 }
 
 // ---------------------------------------------------------------------------

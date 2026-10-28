@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: PharmaZ247 Tracker API
-  version: 3.1.0
+  version: 3.2.0
   summary: Internal API behind the PharmaZ247 Tracker web app.
   description: |
     The PharmaZ247 Tracker lets the marketing team fill in onboarding forms for the doctors and
@@ -1569,9 +1569,16 @@ components:
             type: string
         failed:
           type: array
-          description: Names of the newly assigned people whose email could not be sent (they are still assigned).
+          description: The newly assigned people whose email could not be sent (they are still assigned), each with the reason in plain words. "Sent" only means the mail server took the email; the recipient's mail service decides later whether it reaches the inbox.
           items:
-            type: string
+            type: object
+            required: [name, reason]
+            properties:
+              name:
+                type: string
+              reason:
+                type: string
+                examples: ["the mail server refused the address (550 5.1.1 User unknown)"]
     StatusCounts:
       type: object
       description: How many records are in each status. Follows every filter but `status`, so every tab keeps its number while one is open.

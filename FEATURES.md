@@ -106,6 +106,8 @@ This is the admin's tool for planning the team's visits.
 - Assignments can be changed at any time: add someone, remove someone, or hand an onboarding over when a person leaves. The history records "Assigned to …" and "No longer assigned: …".
 - **What the assigned person receives by email:** the whole form (every field, the status, the visit date and time, the address with a map link, the phone, the notes, the steps), who entered it, who assigned them, and an *Open in the tracker* button. Replies go straight to the admin.
 - **When the form is edited**, everyone assigned receives the new version by email, so nobody travels with old information.
+- **Clear feedback after Save.** A green message says who is assigned now and who was emailed. A **red message with the reason** appears when something didn't go through: an outside address that isn't an email address (nothing is saved), the server refusing the save, email not being set up on the server, or the mail server refusing to send to someone (that person stays assigned). An outside person typed in but not yet added with the **Add** button is added on Save, so they are never quietly left out.
+- *"Sent" means the mail server took the email.* Whether it lands in the inbox or in spam is decided afterwards by the recipient's mail service (for example Microsoft 365 at a company domain), which the tracker can't see.
 
 ---
 
