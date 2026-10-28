@@ -91,6 +91,12 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 
 ## ⏭ Next
 
+### Support calls (planned 28 Oct 2026, PLAN.md section 9)
+- [ ] The **support** role: created from the Team page like marketers; only *Log a call*, *Call log* and Account; the API answers `403` elsewhere; marketers get `403` on support calls
+- [ ] API `/support-calls`: log, list (a page at a time, own calls for support people, all for admins), one call, edit, Open ↔ Resolved, delete (own, or any for admins); contract + Postman folder
+- [ ] Screens in `components/support-calls/`: Call log (tabs, search, filters, pages), Log a call (Doctor / Pharmacy, name, phone, problem title, description, called at), one call (resolve, edit, delete)
+- [ ] FEATURES.md version 9
+
 ### For you
 - [ ] Add your own phone number (Team → your row → Edit details), so it shows on the forms you submit
 

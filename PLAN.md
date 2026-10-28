@@ -125,8 +125,63 @@ Forms are sent as JSON. Errors always look like `{ error: { code, message, field
 2. **Status:** *Support* was added after *Implementation* (23 Oct 2026). Is a *Dropped* status (talks ended) needed too?
 3. ~~When someone leaves~~: solved by assigning (23 Oct 2026): an admin assigns the form to someone else.
 
-## 9. Next steps
+## 9. Planned: support calls (decided 28 Oct 2026, not built yet)
 
+A second job for the tracker, beside onboarding: the **support team** logs the calls that come in from doctors and pharmacies that are already live. Decided with the team on 28 Oct 2026:
+
+| Decision | Choice |
+|---|---|
+| Status on a call | Yes: **Open** / **Resolved** |
+| Who called | Free text: a *Doctor* / *Pharmacy* choice and the name (no link to an onboarding record) |
+| Description | Optional |
+| Marketing team | No access to support calls |
+| Deleting a call | A support person may delete their own calls; an admin any |
+| Doctors and pharmacies | Both, with one form that fits either |
+
+**Role.** A third role, **support**, next to admin and marketing. Admins create support members on the Team page exactly like marketers (temporary password, own password at first sign-in). A support person has two menu items, **Log a call** and **Call log**, plus their Account page; nothing else (the dashboard, Doctors, Pharmacies and Team answer with a redirect to the call log, and the API with `403`). Signing in lands them on the call log.
+
+**Who sees what.** A support person sees, edits and deletes only the calls they logged (another person's call answers `404`, like the forms). An admin sees every call, with who logged it, and can do everything. Marketing people get `403` on `/support-calls`; support people get `403` on `/doctors`, `/pharmacies`, `/calendar` and `/users`.
+
+**A call** (`SupportCall`, collection `supportcalls`):
+
+| Field | What |
+|---|---|
+| `callerType` | `doctor` or `pharmacy` (required) |
+| `callerName`, `phone` | required; the phone is normalised to +880… like everywhere else |
+| `problemTitle` | required, up to 120 characters |
+| `description` | optional, up to 2000 characters |
+| `status` | `open` (the default) or `resolved`; `resolvedAt` is set when it becomes resolved |
+| `calledAt` | when the call came in; now unless the form says otherwise, never in the future |
+| `createdBy` | the support person (name and phone from their account), `createdAt` / `updatedAt` |
+
+**API** (`src/models/SupportCall.js`, `src/routes/supportCalls.js`, under `/api/v1/support-calls`):
+
+| Method | Path | Who | What |
+|---|---|---|---|
+| GET | `/support-calls` | support (own), admin (all) | One page of the log: `?search=` (name, title, phone digits), `status`, `type`, `createdBy` (admin), `from` / `to` (the call's Dhaka day), `sort` (`called_desc` default, `called_asc`, `name`, `updated`), `page`, `limit`; `meta.counts` = `{ all, open, resolved }` |
+| POST | `/support-calls` | support, admin | Log a call |
+| GET · PUT | `/support-calls/:id` | own / admin | One call / save the edited call |
+| PATCH | `/support-calls/:id/status` | own / admin | Open ↔ Resolved |
+| DELETE | `/support-calls/:id` | own / admin | Delete the call |
+
+**Screens** (their own folder, `client/src/components/support-calls/`):
+
+| Route | Screen | File |
+|---|---|---|
+| `/support-calls` | **Call log:** Caller (icon for doctor / pharmacy) · Problem · Logged by (admins) · Called · Status; Open / Resolved / All tabs with counts; search; filters (Doctors / Pharmacies, Logged by for admins, date); the same paging, sorting and address-bar view as the other lists | `CallLog.jsx` |
+| `/support-calls/new` | **Log a call:** Doctor / Pharmacy, name, phone, problem title, description, called at (now), status (Open); "Logged by" from the account | `CallForm.jsx` |
+| `/support-calls/:id` | **One call:** every field, Resolved / Reopen, Edit, Delete | `CallDetails.jsx` |
+| `/support-calls/:id/edit` | The same form, filled in | `CallForm.jsx` |
+
+Shared pieces reused as they are: `PageHeader`, `Pagination`, `Select`, `useUrlParams`, `Avatar`, `ConfirmDialog`, the phone and date helpers. What changes elsewhere: the role list (`utils.js`, `constants.js`, the contract), the sidebar (menu per role), `Protected` (which roles may open a page), the sign-in landing page, the Team page's role choice and badge, and the API's role checks.
+
+**Tests and docs.** A Postman folder *Support calls*: the admin adds a support member → they sign in and choose a password → log a call → see it in their log → can't list doctors (`403`) → can't open another person's call (`404`) → edit, resolve and delete their own → the admin sees every call with who logged it → a marketer gets `403` → clean up. The contract gets a *Support calls* tag; FEATURES, TASKS and this file get a section.
+
+**Order of work.** (1) The support role and the access rules, end to end. (2) The API with its tests. (3) The three screens. (4) Docs. Nothing that exists changes for marketers or admins, except the Team page offering the new role and the admin's sidebar gaining the call log.
+
+## 10. Next steps
+
+- **Support calls:** see section 9.
 - **Going live:** done on Vercel (23 Oct 2026): the API at pharma-z-tracking-server.vercel.app, the web app deployed from the client repository. See the README, "Going live on Vercel".
 - **Email:** set the `SMTP_*` settings on the API's Vercel project so assignment emails go out (see the README).
 - **Nice to have:**
