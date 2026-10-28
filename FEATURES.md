@@ -122,7 +122,7 @@ This is the admin's tool for planning the team's visits.
 ## 9. Lists, Team and Account
 
 **Doctors / Pharmacies lists**
-- Every onboarding of that type, **twenty to a page** (10, 20 or 50 can be chosen). Under the list, always: "Showing 21–40 of 134" and the page numbers. While the next page loads, the rows on screen fade a little instead of disappearing, so the list never jumps.
+- Every onboarding of that type, **twenty to a page** (10, 20 or 50 can be chosen). At the bottom of the screen, always: "Showing 21–40 of 134" and the page numbers (the bar stays at the bottom while a long list scrolls). While the next page loads, the rows on screen fade a little instead of disappearing, so the list never jumps.
 - **Status tabs** (with counts) and a **search box** (name, phone, BMDC number, chamber, owner, area).
 - **Filters** under the tabs: *Assigned to* (anyone, no one yet, me, or a teammate), *Submitted by* (admins only), *Visit date* (any time, today, upcoming, past) and the **order** (newest visit, oldest visit, name, last updated). A filter that is narrowing the list is tinted, and *Clear* resets them all. The counts on the tabs follow the filters.
 - The tabs, filters and page are part of the page's address, so a refresh, the back button or a shared link opens the very same view.
