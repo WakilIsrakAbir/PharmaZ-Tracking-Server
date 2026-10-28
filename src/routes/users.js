@@ -3,13 +3,44 @@ import { z } from 'zod';
 
 import { ApiError, validate } from '../middleware/errors.js';
 import { User, withCreator } from '../models/User.js';
-import { ROLES, emailField, generateTemporaryPassword, hashPassword, objectId, personName, phoneField } from '../utils.js';
+import { allOf } from '../models/shared.js';
+import {
+  ROLES,
+  emailField,
+  generateTemporaryPassword,
+  hashPassword,
+  objectId,
+  pageMeta,
+  pageQuery,
+  personName,
+  phoneField,
+  searchFilter,
+} from '../utils.js';
 
-// /api/v1/users: admins only (see server.js). This is the only way to create accounts.
+// /api/v1/users: admins only (see app.js). This is the only way to create accounts.
+//
+//   GET    /                    one page of the team (?page= ?limit=), filtered (?search= ?role= ?active=) and sorted (?sort=)
+//   POST   /                    add a teammate
+//   PATCH  /:id                 edit, change role, deactivate / reactivate
+//   POST   /:id/reset-password  new temporary password
 const router = Router();
 
 const role = z.enum(ROLES, { error: 'Role must be admin or marketing.' });
 const idParams = z.object({ id: objectId });
+
+const listQuery = z.object({
+  search: z.string().trim().max(80).optional(),
+  role: role.optional(),
+  active: z.stringbool({ error: 'Active must be true or false.' }).optional(),
+  sort: z.enum(['name', 'last_login', 'newest'], { error: 'Sort must be name, last_login or newest.' }).default('name'),
+  ...pageQuery,
+});
+
+const SORTS = {
+  name: { name: 1, _id: 1 }, // A to Z (the default)
+  last_login: { lastLoginAt: -1, name: 1 }, // the most recent sign-in first; people who never signed in last
+  newest: { createdAt: -1, _id: -1 }, // the latest account first
+};
 
 // Name, email and phone are all required: the name and phone are shown on every form the person submits.
 const createBody = z.object({
@@ -31,9 +62,27 @@ async function findUser(id) {
   return user;
 }
 
-// The whole team, active people first. The team is small, so the web app searches and filters it itself.
-router.get('/', async (req, res) => {
-  res.json({ data: await User.find().sort({ isActive: -1, name: 1 }).populate('createdBy', 'name') });
+// One page of the team. `meta.counts` says how many are active and deactivated: it follows the
+// search and the role but not `active`, so both tabs above the list keep their numbers.
+router.get('/', validate({ query: listQuery }), async (req, res) => {
+  const { search, active, sort, page, limit } = req.valid.query;
+  const anyStatus = allOf(req.valid.query.role ? { role: req.valid.query.role } : {}, searchFilter(search, ['name', 'email']));
+  const filter = active === undefined ? anyStatus : allOf(anyStatus, { isActive: active });
+
+  const [users, activeCount, everyoneCount] = await Promise.all([
+    User.find(filter)
+      .collation({ locale: 'en', strength: 2 })
+      .sort(SORTS[sort])
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('createdBy', 'name'),
+    User.countDocuments(allOf(anyStatus, { isActive: true })),
+    User.countDocuments(anyStatus),
+  ]);
+
+  const counts = { active: activeCount, deactivated: everyoneCount - activeCount };
+  const total = active === undefined ? everyoneCount : active ? counts.active : counts.deactivated;
+  res.json({ data: users, meta: { counts, ...pageMeta(req.valid.query, total) } });
 });
 
 // Add a teammate. They get a temporary password (returned once) and choose their own at first sign-in.

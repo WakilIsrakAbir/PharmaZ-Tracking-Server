@@ -1,0 +1,27 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?from={{tomorrowDay}}&to={{tomorrowDay}}'
+order: 10700
+queryParams:
+  - key: from
+    value: '{{tomorrowDay}}'
+  - key: to
+    value: '{{tomorrowDay}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // The sample doctor is visited tomorrow at 11:00 UTC, which is 5:00 PM of the same date in Dhaka.
+      pm.collectionVariables.set('tomorrowDay', pm.collectionVariables.get('doctorVisitDate').slice(0, 10));
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('only the doctor visited that day (the other one is in three days)', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.eql([pm.collectionVariables.get('doctorId')]);
+        pm.expect(meta.total).to.eql(1);
+      });
+      pm.test('the counts follow the days too', () => {
+        pm.expect(meta.counts.all).to.eql(1);
+      });

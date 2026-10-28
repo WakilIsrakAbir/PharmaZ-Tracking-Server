@@ -1,0 +1,25 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?sort=random&limit=500&from=yesterday&assignee=nobody&page=two'
+order: 10800
+queryParams:
+  - key: sort
+    value: random
+  - key: limit
+    value: '500'
+  - key: from
+    value: yesterday
+  - key: assignee
+    value: nobody
+  - key: page
+    value: two
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      const error = pm.response.json().error || {};
+      pm.test('names every wrong query value', () => {
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.include.all.keys('sort', 'limit', 'from', 'assignee', 'page');
+      });

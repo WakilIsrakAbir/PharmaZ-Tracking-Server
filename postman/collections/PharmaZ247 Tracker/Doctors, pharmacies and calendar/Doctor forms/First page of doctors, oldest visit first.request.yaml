@@ -1,0 +1,27 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?limit=1&page=1&sort=visit_asc'
+order: 10500
+queryParams:
+  - key: limit
+    value: '1'
+  - key: page
+    value: '1'
+  - key: sort
+    value: visit_asc
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('one doctor per page: the first page has the earliest visit (tomorrow)', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.eql([pm.collectionVariables.get('doctorId')]);
+      });
+      pm.test('two doctors make two pages', () => {
+        pm.expect(meta.page).to.eql(1);
+        pm.expect(meta.limit).to.eql(1);
+        pm.expect(meta.total).to.eql(2);
+        pm.expect(meta.pages).to.eql(2);
+        pm.expect(meta.counts.all).to.eql(2);
+      });

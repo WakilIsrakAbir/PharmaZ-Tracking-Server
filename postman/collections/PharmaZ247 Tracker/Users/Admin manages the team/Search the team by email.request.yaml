@@ -1,0 +1,25 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/users?search={{newUserEmail}}&role=marketing&active=true'
+order: 4300
+queryParams:
+  - key: search
+    value: '{{newUserEmail}}'
+  - key: role
+    value: marketing
+  - key: active
+    value: 'true'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('finds the new teammate, and only them (case does not matter)', () => {
+        pm.expect(data.map((user) => user.id)).to.eql([pm.collectionVariables.get('newUserId')]);
+      });
+      pm.test('counts one active person and no deactivated ones', () => {
+        pm.expect(meta.total).to.eql(1);
+        pm.expect(meta.pages).to.eql(1);
+        pm.expect(meta.counts).to.eql({ active: 1, deactivated: 0 });
+      });

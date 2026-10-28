@@ -1,0 +1,19 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?assignee=none'
+order: 3300
+queryParams:
+  - key: assignee
+    value: none
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [] } = pm.response.json();
+      const ids = data.map((doctor) => doctor.id);
+      pm.test('leaves out the assigned doctor and keeps the unassigned one', () => {
+        pm.expect(ids).to.not.include(pm.collectionVariables.get('doctorId'));
+        pm.expect(ids).to.include(pm.collectionVariables.get('doctor2Id'));
+        data.forEach((doctor) => pm.expect(doctor.assignedTo).to.eql([]));
+      });

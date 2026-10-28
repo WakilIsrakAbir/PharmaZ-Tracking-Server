@@ -1,0 +1,29 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?createdBy={{fieldUserId}}&sort=name'
+order: 3400
+queryParams:
+  - key: createdBy
+    value: '{{fieldUserId}}'
+  - key: sort
+    value: name
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('lists both doctors the field marketer submitted', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.have.members([pm.collectionVariables.get('doctorId'), pm.collectionVariables.get('doctor2Id')]);
+        pm.expect(meta.total).to.eql(2);
+        data.forEach((doctor) => pm.expect(doctor.createdBy.id).to.eql(pm.collectionVariables.get('fieldUserId')));
+      });
+      pm.test('in name order, A to Z, whatever the case', () => {
+        const names = data.map((doctor) => doctor.name.toLowerCase());
+        pm.expect([...names].sort()).to.eql(names);
+      });
+      pm.test('nobody else submitted a doctor', async () => {
+        const response = await pm.sendRequest({ url: `${pm.variables.get('baseUrl')}/doctors?createdBy=${pm.collectionVariables.get('otherUserId')}`, method: 'GET' });
+        pm.expect(response.code).to.eql(200);
+        pm.expect(response.json().data).to.eql([]);
+      });

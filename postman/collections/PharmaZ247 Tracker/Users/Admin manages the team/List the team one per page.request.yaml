@@ -1,0 +1,27 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/users?limit=1&page=2&sort=newest'
+order: 4200
+queryParams:
+  - key: limit
+    value: '1'
+  - key: page
+    value: '2'
+  - key: sort
+    value: newest
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('returns one person: the second page of one per page', () => {
+        pm.expect(data).to.have.length(1);
+        pm.expect(meta.page).to.eql(2);
+        pm.expect(meta.limit).to.eql(1);
+      });
+      pm.test('says how many people and pages there are', () => {
+        pm.expect(meta.total).to.be.at.least(2);
+        pm.expect(meta.pages).to.eql(meta.total);
+        pm.expect(meta.counts.active + meta.counts.deactivated).to.eql(meta.total);
+      });

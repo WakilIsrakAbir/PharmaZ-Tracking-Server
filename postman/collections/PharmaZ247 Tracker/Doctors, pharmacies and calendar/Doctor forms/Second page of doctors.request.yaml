@@ -1,0 +1,28 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?limit=1&page=2&sort=visit_asc'
+order: 10600
+queryParams:
+  - key: limit
+    value: '1'
+  - key: page
+    value: '2'
+  - key: sort
+    value: visit_asc
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [], meta = {} } = pm.response.json();
+      pm.test('the second page has the later visit (in three days)', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.eql([pm.collectionVariables.get('doctor2Id')]);
+        pm.expect(meta.page).to.eql(2);
+        pm.expect(meta.pages).to.eql(2);
+      });
+      pm.test('a page past the end is empty, not an error', async () => {
+        const response = await pm.sendRequest({ url: `${pm.variables.get('baseUrl')}/doctors?limit=1&page=3`, method: 'GET' });
+        pm.expect(response.code).to.eql(200);
+        pm.expect(response.json().data).to.eql([]);
+        pm.expect(response.json().meta.total).to.eql(2);
+      });

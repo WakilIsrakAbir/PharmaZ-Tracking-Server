@@ -1,6 +1,6 @@
 # PharmaZ247 Tracker — Feature Overview
 
-*Prepared on 27 October 2026 · Version 7*
+*Prepared on 28 October 2026 · Version 8*
 
 ---
 
@@ -122,11 +122,14 @@ This is the admin's tool for planning the team's visits.
 ## 9. Lists, Team and Account
 
 **Doctors / Pharmacies lists**
-- Every onboarding of that type, newest visit first, with tabs by status (with counts) and a search box (name, phone, BMDC number, chamber, owner, area).
+- Every onboarding of that type, **twenty to a page** (10, 20 or 50 can be chosen). Under the list: "Showing 21–40 of 134" and the page numbers. While the next page loads, the rows on screen fade a little instead of disappearing, so the list never jumps.
+- **Status tabs** (with counts) and a **search box** (name, phone, BMDC number, chamber, owner, area).
+- **Filters** under the tabs: *Assigned to* (anyone, no one yet, me, or a teammate), *Submitted by* (admins only), *Visit date* (today, this week, this month, upcoming, past) and the **order** (newest visit, oldest visit, name, last updated). A filter that is narrowing the list is tinted, and *Clear* resets them all. The counts on the tabs follow the filters.
+- The tabs, filters and page are part of the page's address, so a refresh, the back button or a shared link opens the very same view.
 - Each row shows the person, the location (with who entered it), an **Assigned to** column with the assigned people, the date and time, and the status.
 
 **Team** (admins only)
-- Everyone who can sign in, with role, phone, status and last sign-in; *Active* and *Deactivated* tabs; search.
+- Everyone who can sign in, with role, phone, status and last sign-in; *Active* and *Deactivated* tabs; search (name, email, phone); a **role** filter and the order (name, last sign-in, newest); twenty to a page, like the lists.
 - **Add a teammate** (name, email, phone, role): the tracker creates a temporary password and a ready-made WhatsApp message to send them.
 - **Edit** details, **change role**, **reset password**, **deactivate** (signed out at once; their onboardings stay and can be reassigned) or **reactivate**.
 

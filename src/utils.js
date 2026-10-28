@@ -158,3 +158,36 @@ export const optionalTaka = z.preprocess(
   (value) => (value === '' || value === undefined ? null : value),
   z.coerce.number({ error: 'Please enter an amount in taka.' }).int('Use a whole number of taka.').min(0).max(1_000_000).nullable(),
 );
+
+// A day as "2026-10-27" (a Dhaka day, see dhakaDay above).
+export const dayField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a day like 2026-10-27.');
+
+// ---------------------------------------------------------------------------
+// Lists: search and pages (the doctor, pharmacy and team lists)
+// ---------------------------------------------------------------------------
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A MongoDB filter that finds `search` in any of the text fields, or a phone number by its digits
+// ("01711" finds +8801711…). Case doesn't matter. An empty search matches everything.
+export function searchFilter(search, fields) {
+  if (!search) return {};
+  const pattern = new RegExp(escapeRegex(search), 'i');
+  const or = fields.map((field) => ({ [field]: pattern }));
+  const digits = search.replace(/\D/g, '').replace(/^0/, '');
+  if (digits.length >= 3) or.push({ phone: new RegExp(digits) });
+  return { $or: or };
+}
+
+// Every list comes in pages: ?page=2&limit=20. Twenty per page unless asked, at most a hundred.
+export const pageQuery = {
+  page: z.coerce.number({ error: 'Page must be a number.' }).int('Page must be a whole number.').min(1, 'Page must be 1 or more.').default(1),
+  limit: z.coerce
+    .number({ error: 'Limit must be a number.' })
+    .int('Limit must be a whole number.')
+    .min(1, 'Limit must be 1 or more.')
+    .max(100, 'Ask for 100 per page or fewer.')
+    .default(20),
+};
+
+// What a list says about its pages, next to the data: { page, limit, total, pages }.
+export const pageMeta = ({ page, limit }, total) => ({ page, limit, total, pages: Math.ceil(total / limit) });

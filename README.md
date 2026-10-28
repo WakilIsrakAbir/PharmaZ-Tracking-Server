@@ -42,7 +42,7 @@ You need Node.js 22.9 or newer (24 recommended), plus the [Postman CLI](https://
 |---|---|
 | `npm run dev` | Starts the API on http://localhost:4000 with nodemon, which restarts it when a file in `src/` or `.env` changes. An old copy still using port 4000 is stopped first. If MongoDB can't be reached, it says why and keeps trying |
 | `npm start` | Starts the API without watching files (for hosting) |
-| `npm run test:api` | Runs the 90 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
+| `npm run test:api` | Runs the 97 Postman API tests against a throwaway API and database (your data is never touched); no email is sent |
 | `npm run seed:admin` | Creates the first admin from `.env` (safe to run twice) |
 | `npm run db` | Starts a local MongoDB, only when `MONGODB_URI` points at this computer |
 

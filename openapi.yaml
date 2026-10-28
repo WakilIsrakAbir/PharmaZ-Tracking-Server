@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: PharmaZ247 Tracker API
-  version: 3.0.0
+  version: 3.1.0
   summary: Internal API behind the PharmaZ247 Tracker web app.
   description: |
     The PharmaZ247 Tracker lets the marketing team fill in onboarding forms for the doctors and
@@ -37,8 +37,15 @@ info:
     record, or a change of the visit date, must be today or later (`visitDate` answers `400` otherwise);
     a record that already has a past visit keeps it.
 
-    **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears only
-    on the doctor and pharmacy lists. `GET /health` is the exception.
+    **Success responses** wrap the payload as `{ "data": ..., "meta": { ... } }`. `meta` appears on
+    the lists (doctors, pharmacies, users) and after an edit or an assignment (`meta.email`).
+    `GET /health` is the exception.
+
+    **Lists come in pages.** `GET /doctors`, `GET /pharmacies` and `GET /users` answer one page at a
+    time: `?page=2&limit=20` (20 per page unless asked, at most 100). `meta` says where you are:
+    `{ "page": 2, "limit": 20, "total": 134, "pages": 7 }`, next to the `counts` for the tabs above
+    the list. A page past the end is empty, not an error. Every list takes `search`, `sort` and its
+    own filters, and the counts follow every filter except the one the tabs are made of.
 
     **Error responses** always have the same shape. `message` is written for people, so the web app
     can show it as it is:
@@ -315,10 +322,23 @@ paths:
       tags: [Users]
       operationId: listUsers
       summary: List team accounts
-      description: Admin only. Every account, active ones first, then sorted by name. The team is small, so this list is not paginated or filtered; the web app searches it in the browser.
+      description: |
+        Admin only. One page of the team, by name unless `sort` says otherwise. `search` matches the
+        name, the email address or the phone number's digits; `role` and `active` narrow it down.
+
+        `meta.counts` says how many people are active and deactivated, for the two tabs above the
+        list. It follows `search` and `role` but ignores `active`, so both tabs keep their numbers
+        while one is open. For the whole team at once (a people picker), ask for `limit=100`.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/RoleFilter'
+        - $ref: '#/components/parameters/ActiveFilter'
+        - $ref: '#/components/parameters/UserSort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: Everyone on the team.
+          description: One page of the team.
           content:
             application/json:
               schema:
@@ -326,6 +346,8 @@ paths:
               examples:
                 team:
                   $ref: '#/components/examples/UserList'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -507,18 +529,29 @@ paths:
       operationId: listDoctors
       summary: List doctor forms
       description: |
-        Newest `visitDate` first. The team is small, so the list is not paginated. Marketing users
-        get only the doctors they submitted; admins get every doctor.
+        One page of the doctors, latest `visitDate` first unless `sort` says otherwise. Marketing
+        users get only the doctors they submitted or were assigned to; admins get every doctor.
+
+        The filters can be combined: `search`, `status`, `assignee` (a teammate's id, or `none` for
+        the doctors nobody is assigned to), `createdBy` (who submitted it), and `from` / `to` (the
+        visit's day in Dhaka, both included).
 
         `meta.counts` gives the number of doctors in each status, for the tabs above the list. It
-        follows `search` (and who is asking) but ignores `status`, so every tab keeps its number
-        while one is open.
+        follows every filter (and who is asking) but ignores `status`, so every tab keeps its number
+        while one is open. `meta.total` is the number of doctors on all the pages: the open tab's count.
       parameters:
         - $ref: '#/components/parameters/Search'
         - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/AssigneeFilter'
+        - $ref: '#/components/parameters/CreatedByFilter'
+        - $ref: '#/components/parameters/VisitFrom'
+        - $ref: '#/components/parameters/VisitTo'
+        - $ref: '#/components/parameters/RecordSort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: The matching doctors.
+          description: One page of the matching doctors.
           content:
             application/json:
               schema:
@@ -732,13 +765,20 @@ paths:
       tags: [Pharmacies]
       operationId: listPharmacies
       summary: List pharmacy forms
-      description: The same rules as `GET /doctors`.
+      description: The same rules, filters and pages as `GET /doctors`.
       parameters:
         - $ref: '#/components/parameters/Search'
         - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/AssigneeFilter'
+        - $ref: '#/components/parameters/CreatedByFilter'
+        - $ref: '#/components/parameters/VisitFrom'
+        - $ref: '#/components/parameters/VisitTo'
+        - $ref: '#/components/parameters/RecordSort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: The matching pharmacies.
+          description: One page of the matching pharmacies.
           content:
             application/json:
               schema:
@@ -1084,10 +1124,10 @@ components:
     Search:
       name: search
       in: query
-      description: Matches the name, the phone number's digits and a few other text fields (such as the BMDC no. or the area). Case doesn't matter.
+      description: Matches the name, the phone number's digits and a few other text fields (such as the BMDC no., the area, or a teammate's email address). Case doesn't matter.
       schema:
         type: string
-        maxLength: 100
+        maxLength: 80
       example: Tanvir
     StatusFilter:
       name: status
@@ -1095,6 +1135,82 @@ components:
       description: Only records in this status.
       schema:
         $ref: '#/components/schemas/OnboardingStatus'
+    AssigneeFilter:
+      name: assignee
+      in: query
+      description: Only records assigned to this teammate (their user id), or `none` for the records nobody is assigned to.
+      schema:
+        oneOf:
+          - $ref: '#/components/schemas/ObjectId'
+          - type: string
+            const: none
+      example: none
+    CreatedByFilter:
+      name: createdBy
+      in: query
+      description: Only records submitted by this teammate (their user id).
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    VisitFrom:
+      name: from
+      in: query
+      description: Only visits on this day (in Dhaka) or later.
+      schema:
+        $ref: '#/components/schemas/Day'
+      example: '2026-10-01'
+    VisitTo:
+      name: to
+      in: query
+      description: Only visits on this day (in Dhaka) or earlier.
+      schema:
+        $ref: '#/components/schemas/Day'
+      example: '2026-10-31'
+    RecordSort:
+      name: sort
+      in: query
+      description: 'The order of the list: `visit_desc` (latest visit first, the default), `visit_asc`, `name` (A to Z, whatever the case) or `updated` (last changed first).'
+      schema:
+        type: string
+        enum: [visit_desc, visit_asc, name, updated]
+        default: visit_desc
+    RoleFilter:
+      name: role
+      in: query
+      description: Only people with this role.
+      schema:
+        $ref: '#/components/schemas/Role'
+    ActiveFilter:
+      name: active
+      in: query
+      description: '`true` for the people who can sign in, `false` for the deactivated ones. Both when left out.'
+      schema:
+        type: boolean
+    UserSort:
+      name: sort
+      in: query
+      description: 'The order of the list: `name` (A to Z, the default), `last_login` (the most recent sign-in first, people who never signed in last) or `newest` (the latest account first).'
+      schema:
+        type: string
+        enum: [name, last_login, newest]
+        default: name
+    Page:
+      name: page
+      in: query
+      description: Which page, starting at 1.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 2
+    Limit:
+      name: limit
+      in: query
+      description: How many per page, at most 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
 
   requestBodies:
     DoctorForm:
@@ -1281,6 +1397,11 @@ components:
       pattern: '^[a-f0-9]{24}$'
       description: A database id.
       examples: ['6717a3f9c2b1e45d8a0f1a02']
+    Day:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: A calendar day in Dhaka.
+      examples: ['2026-10-27']
     DateTime:
       type: string
       format: date-time
@@ -1453,7 +1574,7 @@ components:
             type: string
     StatusCounts:
       type: object
-      description: How many records are in each status. Follows `search` but ignores the `status` filter, so every tab keeps its number.
+      description: How many records are in each status. Follows every filter but `status`, so every tab keeps its number while one is open.
       required: [all, demo, ongoing, setup, implementation, support]
       properties:
         all:
@@ -1556,14 +1677,55 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/User'
+    PageMeta:
+      type: object
+      description: Where this page sits in the whole list.
+      required: [page, limit, total, pages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: This page, starting at 1.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: How many per page.
+        total:
+          type: integer
+          minimum: 0
+          description: How many match, over all the pages.
+        pages:
+          type: integer
+          minimum: 0
+          description: How many pages there are (0 when nothing matches).
+    UserListMeta:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [counts]
+          properties:
+            counts:
+              type: object
+              description: How many people are active and deactivated. Follows `search` and `role` but ignores `active`, so both tabs keep their numbers.
+              required: [active, deactivated]
+              properties:
+                active:
+                  type: integer
+                  minimum: 0
+                deactivated:
+                  type: integer
+                  minimum: 0
     UserListResponse:
       type: object
-      required: [data]
+      required: [data, meta]
       properties:
         data:
           type: array
           items:
             $ref: '#/components/schemas/User'
+        meta:
+          $ref: '#/components/schemas/UserListMeta'
     CreatedUserResponse:
       type: object
       required: [data]
@@ -1951,11 +2113,13 @@ components:
           items:
             $ref: '#/components/schemas/ImplementationStepInput'
     RecordListMeta:
-      type: object
-      required: [counts]
-      properties:
-        counts:
-          $ref: '#/components/schemas/StatusCounts'
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [counts]
+          properties:
+            counts:
+              $ref: '#/components/schemas/StatusCounts'
     DoctorResponse:
       type: object
       required: [data]
@@ -2134,6 +2298,14 @@ components:
             createdBy: null
             createdAt: '2026-10-20T07:00:00.000Z'
             updatedAt: '2026-10-20T08:15:00.000Z'
+        meta:
+          counts:
+            active: 2
+            deactivated: 0
+          page: 1
+          limit: 20
+          total: 2
+          pages: 1
     CreatedUser:
       summary: A new teammate and their temporary password
       value:
@@ -2328,6 +2500,10 @@ components:
             setup: 4
             implementation: 3
             support: 0
+          page: 1
+          limit: 20
+          total: 12
+          pages: 1
     PharmacyRahmanForm:
       summary: A sample pharmacy form
       value:
@@ -2433,6 +2609,10 @@ components:
             setup: 0
             implementation: 0
             support: 0
+          page: 1
+          limit: 20
+          total: 1
+          pages: 1
     CalendarTomorrow:
       summary: Two visits tomorrow, soonest first
       value:

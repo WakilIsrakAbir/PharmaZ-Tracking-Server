@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 
 import { sendRecordEmails } from '../email.js';
@@ -6,12 +7,26 @@ import { requireAdmin } from '../middleware/auth.js';
 import { ApiError, validate } from '../middleware/errors.js';
 import { User } from '../models/User.js';
 import { allOf, assigneeJson, countSteps, visibleTo } from '../models/shared.js';
-import { STATUSES, STATUS_MESSAGE, dhakaDay, emailField, objectId, optionalText, requiredText } from '../utils.js';
+import {
+  STATUSES,
+  STATUS_MESSAGE,
+  dayField,
+  dhakaDay,
+  emailField,
+  objectId,
+  optionalText,
+  pageMeta,
+  pageQuery,
+  requiredText,
+  searchFilter,
+  startOfDhakaDay,
+} from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
 // /api/v1/doctors (Doctor model) and /api/v1/pharmacies (Pharmacy model).
 //
-//   GET    /                list (?search= ?status=), with counts per status
+//   GET    /                one page of the list (?page= ?limit=), filtered (?search= ?status=
+//                           ?assignee= ?createdBy= ?from= ?to=) and sorted (?sort=), with counts per status
 //   POST   /                submit a new form
 //   GET    /:id             one record
 //   PUT    /:id             save the edited form (everyone assigned is emailed the new version)
@@ -24,10 +39,47 @@ import { STATUSES, STATUS_MESSAGE, dhakaDay, emailField, objectId, optionalText,
 
 const idParams = z.object({ id: objectId });
 
+// How a list can be narrowed down and ordered. `assignee` is a teammate's id, or "none" for the
+// records nobody is assigned to; `from` and `to` are Dhaka days, both included.
 const listQuery = z.object({
   search: z.string().trim().max(80).optional(),
-  status: z.enum(STATUSES).optional(),
+  status: z.enum(STATUSES, { error: STATUS_MESSAGE }).optional(),
+  assignee: z.union([z.literal('none'), objectId], { error: 'Assignee must be a teammate id or "none".' }).optional(),
+  createdBy: objectId.optional(),
+  from: dayField.optional(),
+  to: dayField.optional(),
+  sort: z.enum(['visit_desc', 'visit_asc', 'name', 'updated'], { error: 'Sort must be visit_desc, visit_asc, name or updated.' }).default('visit_desc'),
+  ...pageQuery,
 });
+
+// What each `sort` means. Names are compared without regard to case (see the collation below).
+const SORTS = {
+  visit_desc: { visitDate: -1, _id: -1 }, // the latest visit first (the default)
+  visit_asc: { visitDate: 1, _id: 1 },
+  name: { name: 1, _id: 1 },
+  updated: { updatedAt: -1, _id: -1 }, // the last changed first
+};
+
+const DAY = 24 * 60 * 60 * 1000; // Dhaka has no daylight saving, so a day is always 24 hours
+
+// Only the records of these people: submitted by `createdBy`, assigned to `assignee` (or to no one).
+// The ids come in as text; the aggregation that counts the statuses needs real ObjectIds.
+function peopleFilter({ assignee, createdBy }) {
+  const filter = {};
+  if (createdBy) filter.createdBy = new mongoose.Types.ObjectId(createdBy);
+  if (assignee === 'none') filter.assignedTo = { $size: 0 };
+  else if (assignee) filter['assignedTo.user'] = new mongoose.Types.ObjectId(assignee);
+  return filter;
+}
+
+// Only the visits between two Dhaka days, both included.
+function visitDateFilter({ from, to }) {
+  if (!from && !to) return {};
+  const visitDate = {};
+  if (from) visitDate.$gte = startOfDhakaDay(from);
+  if (to) visitDate.$lt = new Date(startOfDhakaDay(to).getTime() + DAY);
+  return { visitDate };
+}
 
 // The implementation checklist. The whole list is sent each time; existing steps keep their id.
 const stepsInput = z
@@ -56,8 +108,6 @@ const assigneesBody = z.object({
     .max(20, 'Assign 20 people or fewer.'),
 });
 
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 // Who submitted the form (with their phone, so the team can call them), who is assigned to it,
 // and who made each change.
 const PEOPLE = [
@@ -77,22 +127,24 @@ export function recordRoutes(Model, input) {
     return record;
   }
 
-  // Matches the text fields, and phone numbers by their digits ("01711" finds +8801711…).
-  function searchFilter(search) {
-    if (!search) return {};
-    const pattern = new RegExp(escapeRegex(search), 'i');
-    const or = Model.searchFields.map((field) => ({ [field]: pattern }));
-    const digits = search.replace(/\D/g, '').replace(/^0/, '');
-    if (digits.length >= 3) or.push({ phone: new RegExp(digits) });
-    return { $or: or };
-  }
-
+  // One page of the list. The counts per status follow every filter except `status` itself, so the
+  // tabs above the list keep their numbers while one of them is open; the page total is that tab's count.
   router.get('/', validate({ query: listQuery }), async (req, res) => {
-    const { search, status } = req.valid.query;
-    const filter = allOf(visibleTo(req.user), searchFilter(search));
+    const { search, status, sort, page, limit } = req.valid.query;
+    const filter = allOf(
+      visibleTo(req.user),
+      searchFilter(search, Model.searchFields),
+      peopleFilter(req.valid.query),
+      visitDateFilter(req.valid.query),
+    );
 
     const [records, perStatus] = await Promise.all([
-      Model.find(status ? allOf(filter, { status }) : filter).sort({ visitDate: -1 }).populate(PEOPLE),
+      Model.find(status ? allOf(filter, { status }) : filter)
+        .collation({ locale: 'en', strength: 2 }) // "dr. karim" and "Dr. Karim" sort together
+        .sort(SORTS[sort])
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate(PEOPLE),
       Model.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
@@ -101,7 +153,8 @@ export function recordRoutes(Model, input) {
       counts[_id] = count;
       counts.all += count;
     }
-    res.json({ data: records, meta: { counts } });
+    const total = status ? counts[status] : counts.all;
+    res.json({ data: records, meta: { counts, ...pageMeta(req.valid.query, total) } });
   });
 
   router.post('/', validate({ body: input }), async (req, res) => {

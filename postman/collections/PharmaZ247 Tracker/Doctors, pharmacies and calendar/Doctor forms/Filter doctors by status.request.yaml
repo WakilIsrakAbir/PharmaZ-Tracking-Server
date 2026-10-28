@@ -19,3 +19,9 @@ scripts:
         pm.expect(meta.counts.all).to.be.at.least(2);
         pm.expect(meta.counts.ongoing).to.be.at.least(2);
       });
+      pm.test('the page total is the count of that status', () => {
+        pm.expect(meta.total).to.eql(meta.counts.setup);
+        pm.expect(meta.page).to.eql(1);
+        pm.expect(meta.limit).to.eql(20);
+        pm.expect(meta.pages).to.eql(Math.ceil(meta.total / 20));
+      });

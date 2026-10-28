@@ -7,14 +7,20 @@ scripts:
     language: text/javascript
     code: |-
       pm.test('200 OK', () => pm.response.to.have.status(200));
-      const data = pm.response.json().data;
+      const { data = [], meta = {} } = pm.response.json();
       pm.test('returns a list of users', () => pm.expect(data).to.be.an('array').that.is.not.empty);
       pm.test('includes the new teammate', () => {
         pm.expect(data.map((user) => user.id)).to.include(pm.collectionVariables.get('newUserId'));
       });
-      pm.test('lists active accounts before deactivated ones', () => {
-        const firstInactive = data.findIndex((user) => !user.isActive);
-        if (firstInactive !== -1) {
-          pm.expect(data.slice(firstInactive).every((user) => !user.isActive)).to.be.true;
-        }
+      pm.test('is the first page of twenty, with the counts for the tabs', () => {
+        pm.expect(meta.page).to.eql(1);
+        pm.expect(meta.limit).to.eql(20);
+        pm.expect(meta.total).to.eql(data.length);
+        pm.expect(meta.pages).to.eql(1);
+        pm.expect(meta.counts.active).to.be.at.least(2);
+        pm.expect(meta.counts.deactivated).to.eql(0);
+      });
+      pm.test('lists people by name, A to Z', () => {
+        const names = data.map((user) => user.name.toLowerCase());
+        pm.expect([...names].sort()).to.eql(names);
       });

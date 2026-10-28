@@ -14,7 +14,7 @@
    - **Details** (read only): the person or pharmacy with, right under the name, **who submitted it** and **who is assigned** (admins have the **Assign** button there), then the place (with Google Maps), the phone (Call / WhatsApp) and the notes;
    - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, the history of every change (who made it and when).
    - All the numbered form fields are on the form's full page (`/doctors/:id`) and in **Edit form**.
-4. **Lists:** all doctors and all pharmacies, with status tabs and search, each opening a full page.
+4. **Lists:** all doctors and all pharmacies, a page at a time, with status tabs, search and filters (assigned to, submitted by, visit date, order), each opening a full page. The Team page works the same way.
 5. **Who sees what:** a marketing person sees the forms they submitted and the forms assigned to them: on the calendar, in the lists and in the details. Admins see every form, with the name of the person who submitted it and who is assigned.
 7. **Assigning:** an admin assigns people to a form by email address (**Assign** in the Status card): teammates from a list, or anyone outside the team by name and email address (the name is saved and shown). A teammate then sees the form; an outside address only gets the emails. Each newly assigned person gets an **email with the whole form** (every numbered field, the status, the visit, the address with a map link, the notes, the steps, who submitted it, and a link to open it in the tracker). The history records "Assigned to …" / "No longer assigned: …". Whenever the form is **edited**, everyone assigned gets the new version by email. People can be added or removed at any time. This is also how a form moves to someone else when a person leaves.
 6. **Accounts:** only the admin creates accounts (Team page), with a name, email and phone number (all three required). There is no sign-up. New people get a temporary password and choose their own at first sign-in.
@@ -26,7 +26,7 @@
 | `/login` | Sign in (and choose a password at first sign-in) | everyone |
 | `/` | **Dashboard (home):** month calendar + details panel | signed in |
 | `/?month=2026-10&day=2026-10-21&type=doctor&id=…` | The same, with a day or visit open. The link can be shared | signed in |
-| `/doctors` · `/pharmacies` | Lists with status tabs and search | signed in |
+| `/doctors` · `/pharmacies` | Lists, a page at a time, with status tabs, search and filters (`?status=setup&assigned=…&when=month&sort=name&page=2`) | signed in |
 | `/doctors/new` · `/pharmacies/new` | The forms, opened from the dashboard (`?date=2026-10-21` pre-fills the visit date) | signed in |
 | `/doctors/:id` · `/pharmacies/:id` | Full page for one form | signed in |
 | `/doctors/:id/edit` · `/pharmacies/:id/edit` | Edit a submitted form | signed in |
@@ -77,10 +77,10 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | POST | `/auth/login` · `/auth/logout` | everyone | Sign in (sets an httpOnly cookie) / sign out |
 | GET | `/auth/me` | signed in | Who is signed in |
 | PATCH | `/auth/password` | signed in | Change your password |
-| GET · POST | `/users` | admin | List / add teammates: name, email and phone are required (returns a temporary password once) |
+| GET · POST | `/users` | admin | List, a page at a time (`?search=&role=&active=&sort=&page=&limit=`, with active / deactivated counts) / add teammates: name, email and phone are required (returns a temporary password once) |
 | PATCH | `/users/:id` | admin | Edit name, phone or role; deactivate or reactivate |
 | POST | `/users/:id/reset-password` | admin | New temporary password |
-| GET · POST | `/doctors` | signed in | List (`?search=&status=`, with counts) / submit a form |
+| GET · POST | `/doctors` | signed in | List, a page at a time (`?search=&status=&assignee=&createdBy=&from=&to=&sort=&page=&limit=`, with counts per status) / submit a form |
 | GET · PUT | `/doctors/:id` | signed in | One form / save an edited form (everyone assigned is emailed the new version) |
 | PATCH | `/doctors/:id/status` | signed in | New status (+ date, note and implementation steps) → history |
 | PUT | `/doctors/:id/assignees` | admin | Who is assigned, by email (teammates or outside addresses) → history; newly assigned people are emailed the form |

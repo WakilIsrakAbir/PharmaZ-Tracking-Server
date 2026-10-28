@@ -1,0 +1,23 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/users?page=0&limit=500&active=maybe&sort=age'
+order: 4400
+queryParams:
+  - key: page
+    value: '0'
+  - key: limit
+    value: '500'
+  - key: active
+    value: maybe
+  - key: sort
+    value: age
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      const error = pm.response.json().error || {};
+      pm.test('names every wrong query value', () => {
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.include.all.keys('page', 'limit', 'active', 'sort');
+      });

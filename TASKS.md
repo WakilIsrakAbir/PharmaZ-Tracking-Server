@@ -2,7 +2,7 @@
 
 What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is ticked only when the task is built **and** tested.
 
-**Status (27 Oct 2026):** the app is live on Vercel. Version 7 added the Demo status, the year overview, greyed past days (no new visits in the past), and the people at the top of the details. **Next:** the remaining items under "For you".
+**Status (28 Oct 2026):** the app is live on Vercel. Version 8 made the Doctors, Pharmacies and Team lists load a page at a time, with filters and an order. **Next:** the remaining items under "For you".
 
 ---
 
@@ -37,6 +37,13 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 ### Lists
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form
 
+### Version 8 (28 Oct 2026)
+- [x] **Pages:** the Doctors, Pharmacies and Team lists load twenty rows at a time (10 / 20 / 50 to choose), with "Showing 21–40 of 134", page numbers and ‹ ›; the rows on screen fade while the next page loads; a page that no longer exists falls back to the last one
+- [x] **Filters** under the status tabs: Assigned to (anyone / no one yet / me / a teammate), Submitted by (admins), Visit date (today, this week, this month, upcoming, past) and the order (newest visit, oldest visit, name, last updated); a narrowing filter is tinted; "Clear" resets them; the tab counts follow the filters
+- [x] **Team:** search, a role filter, the order (name, last sign-in, newest) and pages, the same way
+- [x] The tabs, filters and page live in the address (`?status=setup&page=2`), so a refresh, the back button and shared links keep the view (`lib/useUrlParams.js`, also used by the dashboard)
+- [x] API: `GET /doctors`, `/pharmacies` and `/users` take `page`, `limit`, `sort` and their filters (`assignee`, `createdBy`, `from`, `to`; `role`, `active`) and answer `meta: { page, limit, total, pages, counts }`; names sort A to Z whatever the case; contract 3.1.0 and tests updated
+
 ### Version 5 (21 Oct 2026)
 - [x] Details panel in two sections: **Details** (read only) and **Status** (editable, in a tinted box with a blue border), with **Edit form** beside the Status title; no field list or "Full page" button in the panel (the notes moved into Details)
 - [x] Phone number required when an admin adds or edits a teammate
@@ -54,7 +61,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Lists: an **Assigned to** column (avatars + names); outside assignees get a **name** that is saved and shown everywhere
 - [x] Details: **Submitted by** and **Assigned to** right under the name, with the **Assign** button beside the badges; the Status card keeps the update box and the history
 - [x] API: a short database drop no longer turns into 503s (the driver reconnects, queries wait); on Vercel a cold start waits at most 8 s for the database
-- [x] 90 Postman tests (481 checks) passing; API contract updated and linted
+- [x] 87 Postman tests (466 checks) passing; API contract updated and linted
 
 ### Version 6 (23 Oct 2026)
 - [x] **Support** status after Implementation (violet): status picker, form, list tabs, calendar, badges, API contract and tests
@@ -74,7 +81,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (90 tests, 481 checks as of 27 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (97 tests, 525 checks as of 28 Oct 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---
