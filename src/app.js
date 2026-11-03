@@ -34,13 +34,18 @@ if (env.NODE_ENV !== 'test') app.use(morgan(env.isProduction ? 'combined' : 'dev
 // 2. Routes ------------------------------------------------------------------
 const api = express.Router();
 
-// Until MongoDB is connected, every request gets a 503 that says why (instead of hanging).
-api.use((req, res, next) => {
-  if (database.ready) return next();
-  next(new ApiError(503, database.problem, { code: 'DATABASE_UNAVAILABLE' }));
-});
+api.get('/health', (req, res) => res.json({ ok: true, dbReady: database.ready }));
 
-api.get('/health', (req, res) => res.json({ ok: true }));
+// Ensure MongoDB is connected; on cold start or after reconnection, await connectDB()
+api.use(async (req, res, next) => {
+  if (database.ready) return next();
+  try {
+    await connectDB();
+    next();
+  } catch {
+    next(new ApiError(503, database.problem, { code: 'DATABASE_UNAVAILABLE' }));
+  }
+});
 api.use('/auth', authRoutes);                                                           // sign in / out, me, password
 api.use('/users', requireAuth, requireAdmin, userRoutes);                               // team accounts (admin only)
 // Onboarding: admins and the marketing team (marketing people only get the forms they submitted or were assigned to).

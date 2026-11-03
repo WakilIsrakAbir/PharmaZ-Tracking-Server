@@ -49,6 +49,11 @@ export const env = {
   emailEnabled: Boolean(result.data.SMTP_HOST && result.data.SMTP_USER && result.data.SMTP_PASS && result.data.EMAIL_FROM),
 };
 
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 // The database connection as requests see it. Until it is ready, the API answers every request
 // with a 503 and this reason (requireDatabase in server.js), so the web app can say what's wrong.
 // Once connected, a short drop is left to the driver: it reconnects by itself and queries made
@@ -62,35 +67,55 @@ export const database = {
   },
 };
 
-// Connects to MongoDB and never gives up: it explains once what is probably wrong, then keeps
-// trying, so everything works by itself as soon as the problem is fixed (for example after this
-// computer's IP is allowed in Atlas, or after a short network hiccup on the host). Meanwhile every
-// request gets a 503 with database.problem. Mongoose reconnects by itself once connected.
+// Connects to MongoDB and caches connection for serverless/long-running use:
+// In production/serverless, fails fast with 503 if unreachable, so requests never hang until Vercel timeout.
 export async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    database.connectedOnce = true;
+    return mongoose.connection;
+  }
+
+  if (cached.promise) {
+    return cached.promise;
+  }
+
+  const opts = {
+    serverSelectionTimeoutMS: 5000,
+    bufferCommands: false,
+    maxPoolSize: env.isProduction ? 10 : undefined,
+  };
+
   mongoose.connection.on('disconnected', () => {
     database.problem = 'The server lost its database connection and is reconnecting. Please try again in a moment.';
+    cached.promise = null;
   });
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await mongoose.connect(env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
-      console.log(`✓ MongoDB connected (database "${mongoose.connection.name}")`);
-      database.connectedOnce = true;
-      return;
-    } catch (error) {
-      if (env.isProduction) {
-        database.problem = "The server can't reach its database right now. Please try again in a moment.";
-        if (attempt === 1) console.error(`✖ Could not connect to MongoDB: ${error.message}`);
+
+  cached.promise = (async () => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await mongoose.connect(env.MONGODB_URI, opts);
+        console.log(`✓ MongoDB connected (database "${mongoose.connection.name}")`);
+        database.connectedOnce = true;
+        return mongoose.connection;
+      } catch (error) {
+        cached.promise = null;
+        if (env.isProduction) {
+          database.problem = "The server can't reach its database right now. Please try again in a moment.";
+          console.error(`✖ Could not connect to MongoDB: ${error.message}`);
+          throw error;
+        }
+        if (attempt === 1) {
+          database.problem = await whyNoDatabase(error);
+          console.error(`✖ ${database.problem}`);
+        } else if (attempt % 12 === 0) {
+          console.log('… still waiting for MongoDB');
+        }
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        continue;
-      }
-      if (attempt === 1) {
-        database.problem = await whyNoDatabase(error);
-        console.error(`✖ ${database.problem}`);
-      } else if (attempt % 12 === 0) {
-        console.log('… still waiting for MongoDB');
       }
     }
-  }
+  })();
+
+  return cached.promise;
 }
 
 // The likely reason MongoDB can't be reached, and what to do, in plain words.
