@@ -100,8 +100,8 @@ const assigneesBody = z.object({
 // Who submitted the form (with their phone, so the team can call them), who is assigned to it,
 // and who made each change.
 const PEOPLE = [
-  { path: 'createdBy', select: 'name phone' },
-  { path: 'assignedTo.user', select: 'name phone' },
+  { path: 'createdBy', select: 'name phone role' },
+  { path: 'assignedTo.user', select: 'name phone role' },
   { path: 'history.by', select: 'name' },
 ];
 
@@ -137,7 +137,7 @@ export function recordRoutes(Model, input) {
       Model.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
-    const counts = { all: 0, demo: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 };
+    const counts = { all: 0, account_creation: 0, demo: 0, ongoing: 0, setup: 0, implementation: 0, support: 0 };
     for (const { _id, count } of perStatus) {
       counts[_id] = count;
       counts.all += count;

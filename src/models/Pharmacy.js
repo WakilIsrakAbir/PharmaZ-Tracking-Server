@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-import { DAYS, optionalEmail, optionalText, optionalTime, phoneField, requiredText } from '../utils.js';
+import { DAYS, PHARMACY_TYPES, optionalEmail, optionalText, optionalTime, phoneField, requiredText } from '../utils.js';
 import { recordOptions, trackingFields, trackingInput } from './shared.js';
 
 const PAYMENT_METHODS = ['cash', 'bkash', 'nagad', 'card'];
@@ -10,11 +10,13 @@ const PAYMENT_METHODS = ['cash', 'bkash', 'nagad', 'card'];
 const pharmacySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },                  // 1  Pharmacy Name
-    //                                                                      2  Shop Photo: not kept (the tracker has no photos)
+    pharmacyType: { type: String, enum: PHARMACY_TYPES, default: 'single' }, // 2  Pharmacy Type (Single / Chain)
     ownerName: { type: String, trim: true, default: '' },                // 3  Owner Name
     phone: { type: String, required: true },                             // 4  Phone No
     email: { type: String, trim: true, default: '' },                    // 5  Email
     drugLicenseNo: { type: String, trim: true, default: '' },            // 6  Drug License No.
+    drugLicenseIssueDate: { type: Date, default: null },                 //     Issue Date
+    drugLicenseExpireDate: { type: Date, default: null },                //     Expire Date
     tradeLicenseNo: { type: String, trim: true, default: '' },           // 7  Trade License No.
     address: { type: String, required: true, trim: true },               // 8  Address
     area: { type: String, trim: true, default: '' },                     // 9  Area / Thana
@@ -35,10 +37,13 @@ Pharmacy.searchFields = ['name', 'ownerName', 'drugLicenseNo', 'address', 'area'
 // What the form may send. Required: name, phone, address, visit date.
 export const pharmacyInput = z.object({
   name: requiredText('Please enter the pharmacy name.'),
+  pharmacyType: z.enum(PHARMACY_TYPES).default('single'),
   ownerName: optionalText(120),
   phone: phoneField,
   email: optionalEmail,
   drugLicenseNo: optionalText(40),
+  drugLicenseIssueDate: z.preprocess((val) => (val === '' || val === undefined ? null : val), z.coerce.date().nullable().optional()),
+  drugLicenseExpireDate: z.preprocess((val) => (val === '' || val === undefined ? null : val), z.coerce.date().nullable().optional()),
   tradeLicenseNo: optionalText(40),
   address: requiredText('Please enter the pharmacy address.', 300),
   area: optionalText(80),

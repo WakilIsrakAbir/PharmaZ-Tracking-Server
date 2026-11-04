@@ -8,7 +8,14 @@ import { env } from './config.js';
 //   updated    "this form was edited", to everyone assigned
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
-const STATUS_LABELS = { demo: 'Demo', ongoing: 'Ongoing', setup: 'Setup', implementation: 'Implementation', support: 'Support' };
+const STATUS_LABELS = {
+  account_creation: 'Account Creation',
+  demo: 'Demo',
+  ongoing: 'Ongoing',
+  setup: 'Setup',
+  implementation: 'Implementation',
+  support: 'Support',
+};
 const TYPE_LABELS = { doctor: 'Doctor', pharmacy: 'Pharmacy' };
 const TYPE_PATHS = { doctor: '/doctors', pharmacy: '/pharmacies' };
 
@@ -165,12 +172,16 @@ function formRows(type, record) {
       ['15. After 1 mo.', formatTaka(record.fees?.afterOneMonth)],
     ];
   }
+  const pharmacyTypeLabel = record.pharmacyType === 'chain' ? 'Chain' : 'Single';
   return [
     ['1. Pharmacy Name', record.name],
+    ['Pharmacy Type', pharmacyTypeLabel],
     ['3. Owner Name', record.ownerName],
     ['4. Phone No', formatPhone(record.phone)],
     ['5. Email', record.email],
     ['6. Drug License No.', record.drugLicenseNo],
+    ['Drug License Issue Date', formatDate(record.drugLicenseIssueDate)],
+    ['Drug License Expire Date', formatDate(record.drugLicenseExpireDate)],
     ['7. Trade License No.', record.tradeLicenseNo],
     ['8. Address', { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' }],
     ['9. Area / Thana', record.area],
@@ -184,6 +195,19 @@ function formRows(type, record) {
 // ---------------------------------------------------------------------------
 // Small formatters (the web app has the same ones in lib/format.js)
 // ---------------------------------------------------------------------------
+function formatDate(date) {
+  if (!date) return '';
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Dhaka',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(date));
+  } catch {
+    return '';
+  }
+}
 // "Hi Rafi," for a teammate; "Hi there," for an outside email address with no name.
 const greetingName = (person) => (person.name && person.name !== person.email ? firstName(person.name) : 'there');
 const firstName = (name = '') => name.trim().split(/\s+/)[0] ?? '';

@@ -9,8 +9,9 @@ import { env } from './config.js';
 // Names used across the API. Keep in sync with client/src/lib/constants.js.
 // ---------------------------------------------------------------------------
 export const ROLES = ['admin', 'marketing', 'support'];
-export const STATUSES = ['demo', 'ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
-export const STATUS_MESSAGE = 'Status must be Demo, Ongoing, Setup, Implementation or Support.';
+export const STATUSES = ['account_creation', 'demo', 'ongoing', 'setup', 'implementation', 'support'];   // the onboarding steps, in order
+export const STATUS_MESSAGE = 'Status must be Account Creation, Demo, Ongoing, Setup, Implementation or Support.';
+export const PHARMACY_TYPES = ['single', 'chain'];
 
 // The support team's call log (routes/supportCalls.js)
 export const CALLER_TYPES = ['doctor', 'pharmacy'];   // who called

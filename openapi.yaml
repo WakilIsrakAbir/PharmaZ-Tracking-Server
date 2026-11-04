@@ -1508,7 +1508,7 @@ components:
                   message: Please check the highlighted fields.
                   fields:
                     phone: Phone number should look like +880 1711-234567.
-                    status: Status must be Demo, Ongoing, Setup, Implementation or Support.
+                    status: Status must be Account Creation, Demo, Ongoing, Setup, Implementation or Support.
             invalidJson:
               summary: The body is not valid JSON
               value:
@@ -1691,9 +1691,10 @@ components:
         - `support`: logs support calls and sees only their own; nothing on the onboarding side
     OnboardingStatus:
       type: string
-      enum: [demo, ongoing, setup, implementation, support]
+      enum: [account_creation, demo, ongoing, setup, implementation, support]
       description: |
-        Where a doctor or pharmacy is in onboarding. New records start as `demo` (the first visit) unless the form says otherwise.
+        Where a doctor or pharmacy is in onboarding. New records start as `account_creation` unless the form says otherwise.
+        - `account_creation`: account created in PharmaZ247
         - `demo`: the first visit, showing PharmaZ247
         - `ongoing`: talks have started and the form is being filled in
         - `setup`: the form is complete; profile, slots and fees are being set up in PharmaZ247
@@ -2250,12 +2251,25 @@ components:
       type: object
       description: The pharmacy-only fields (draft until the pharmacy paper form is confirmed).
       properties:
+        pharmacyType:
+          type: string
+          enum: [single, chain]
+          default: single
+          description: Whether this is a single pharmacy or part of a chain.
         ownerName:
           type: string
         drugLicenseNo:
           type: string
           description: DGDA drug licence no.
           examples: ['DL-12345']
+        drugLicenseIssueDate:
+          type: [string, 'null']
+          format: date
+          description: When the drug licence was issued.
+        drugLicenseExpireDate:
+          type: [string, 'null']
+          format: date
+          description: When the drug licence expires.
         tradeLicenseNo:
           type: string
         area:
