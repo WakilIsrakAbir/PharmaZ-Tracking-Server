@@ -2310,10 +2310,10 @@ components:
     RecordFormBase:
       type: object
       description: |
-        The fields every form sends. Only `name`, `phone`, `address` and `visitDate` are required.
+        The fields every form sends. All onboarding fields are optional.
         Anything left out is saved empty: `""` for text, `[]` for lists and `null` for numbers and
         yes/no answers.
-      required: [name, phone, address, visitDate]
+      required: [visitDate]
       properties:
         name:
           type: string

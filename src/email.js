@@ -78,6 +78,7 @@ function recordEmail({ record, type, person, by, reason }) {
   const kind = TYPE_LABELS[type];
   const visit = formatVisit(record.visitDate);
   const link = `${env.appUrl}${TYPE_PATHS[type]}/${record._id}`;
+  const displayName = record.name || `Unnamed ${kind}`;
   const rows = [
     ...formRows(type, record),
     ['Status', STATUS_LABELS[record.status] ?? record.status],
@@ -90,12 +91,12 @@ function recordEmail({ record, type, person, by, reason }) {
 
   const intro =
     reason === 'updated'
-      ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${record.name}. Here is the form as it is now.`
-      : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${record.name}.`;
+      ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${displayName}. Here is the form as it is now.`
+      : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${displayName}.`;
   const subject =
     reason === 'updated'
-      ? `Updated: ${record.name} (${kind}) · visit ${visit}`
-      : `Assigned to you: ${record.name} (${kind}) · visit ${visit}`;
+      ? `Updated: ${displayName} (${kind}) · visit ${visit}`
+      : `Assigned to you: ${displayName} (${kind}) · visit ${visit}`;
 
   return {
     from: env.EMAIL_FROM,
@@ -161,7 +162,7 @@ function formRows(type, record) {
       ['4. Phone No', formatPhone(record.phone)],
       ['5. Email', record.email],
       ['6. Chamber Name', record.chamberName],
-      ['7. Chamber Address', { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' }],
+      ['7. Chamber Address', record.address ? { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' } : ''],
       ['8. Consultation Type', record.consultationTypes.map((value) => CONSULTATION_TYPES[value] ?? value).join(', ')],
       ['9. Chamber No.', record.chamberNo],
       ['10. Slot Duration', record.slotDuration ? `${record.slotDuration} mins` : ''],
@@ -183,7 +184,7 @@ function formRows(type, record) {
     ['Drug License Issue Date', formatDate(record.drugLicenseIssueDate)],
     ['Drug License Expire Date', formatDate(record.drugLicenseExpireDate)],
     ['7. Trade License No.', record.tradeLicenseNo],
-    ['8. Address', { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' }],
+    ['8. Address', record.address ? { text: record.address, link: mapsLink(record.address), linkLabel: 'Open in Google Maps' } : ''],
     ['9. Area / Thana', record.area],
     ['10. District', record.district],
     ['11. Opening Days & Time', formatAvailability(record)],

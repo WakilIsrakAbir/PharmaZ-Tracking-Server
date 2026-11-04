@@ -139,6 +139,18 @@ export const phoneField = z
     return normalized;
   });
 
+export const optionalPhone = z
+  .preprocess((value) => value ?? '', z.string().trim())
+  .transform((value, ctx) => {
+    if (!value) return '';
+    const normalized = normalizePhone(value);
+    if (!normalized) {
+      ctx.addIssue({ code: 'custom', message: 'Phone number should look like 01711-234567.' });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
 export const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'That ID is not valid.');
 
 // A required line of text, e.g. requiredText('Please enter the pharmacy name.')

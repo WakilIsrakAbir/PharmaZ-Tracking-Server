@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-import { DAYS, optionalEmail, optionalTaka, optionalText, optionalTime, phoneField, requiredText } from '../utils.js';
+import { DAYS, optionalEmail, optionalPhone, optionalTaka, optionalText, optionalTime } from '../utils.js';
 import { recordOptions, trackingFields, trackingInput } from './shared.js';
 
 const CONSULTATION_TYPES = ['in_person', 'teleconsultation'];
@@ -10,13 +10,13 @@ const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60];   // minutes
 // The paper "Doctor Onboarding Form", field by field (the numbers match the paper).
 const doctorSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },                  // 1  Full Name
+    name: { type: String, trim: true, default: '' },                     // 1  Full Name
     //                                                                      2  Doctor Picture: not kept (the tracker has no photos)
     bmdcRegNo: { type: String, trim: true, default: '' },                // 3  BMDC Reg. No.
-    phone: { type: String, required: true },                             // 4  Phone No
+    phone: { type: String, trim: true, default: '' },                    // 4  Phone No
     email: { type: String, trim: true, default: '' },                    // 5  Email
     chamberName: { type: String, trim: true, default: '' },              // 6  Chamber Name
-    address: { type: String, required: true, trim: true },               // 7  Chamber Address
+    address: { type: String, trim: true, default: '' },                  // 7  Chamber Address
     consultationTypes: [{ type: String, enum: CONSULTATION_TYPES }],     // 8  Consultation Type
     chamberNo: { type: String, trim: true, default: '' },                // 9  Chamber No.
     slotDuration: { type: Number, default: null },                       // 10 Slot Duration (minutes)
@@ -37,14 +37,14 @@ const doctorSchema = new mongoose.Schema(
 export const Doctor = mongoose.model('Doctor', doctorSchema);
 Doctor.searchFields = ['name', 'bmdcRegNo', 'chamberName', 'address', 'email'];
 
-// What the form may send. Required: name, phone, chamber address, visit date.
+// What the form may send. All onboarding fields are optional.
 export const doctorInput = z.object({
-  name: requiredText("Please enter the doctor's full name."),
+  name: optionalText(120),
   bmdcRegNo: optionalText(30),
-  phone: phoneField,
+  phone: optionalPhone,
   email: optionalEmail,
   chamberName: optionalText(120),
-  address: requiredText('Please enter the chamber address.', 300),
+  address: optionalText(300),
   consultationTypes: z.array(z.enum(CONSULTATION_TYPES)).default([]),
   chamberNo: optionalText(40),
   slotDuration: z.preprocess(
