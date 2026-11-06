@@ -13,7 +13,7 @@ import {
   pageMeta,
   pageQuery,
   personName,
-  phoneField,
+  optionalPhone,
   searchFilter,
 } from '../utils.js';
 
@@ -42,17 +42,17 @@ const SORTS = {
   newest: { createdAt: -1, _id: -1 }, // the latest account first
 };
 
-// Name, email and phone are all required: the name and phone are shown on every form the person submits.
+// Name and email are required; phone is optional.
 const createBody = z.object({
   name: personName,
   email: emailField,
-  phone: phoneField,
+  phone: optionalPhone.default(null),
   role: role.default('marketing'),
 });
 
-// The phone can be changed but not removed.
+// The phone can be changed or removed.
 const updateBody = z
-  .object({ name: personName, phone: phoneField, role, isActive: z.boolean({ error: 'isActive must be true or false.' }) })
+  .object({ name: personName, phone: optionalPhone, role, isActive: z.boolean({ error: 'isActive must be true or false.' }) })
   .partial()
   .refine((changes) => Object.keys(changes).length > 0, { error: 'Send at least one field to change.' });
 

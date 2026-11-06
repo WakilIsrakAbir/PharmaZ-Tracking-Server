@@ -364,12 +364,8 @@ paths:
       operationId: createUser
       summary: Add a teammate
       description: |
-        Admin only, and the only way an account can be created. `name`, `email` and `phone` are
-        required: the name and phone number are shown on every form the teammate submits.
-
-        The response includes a temporary password, **shown this one time only**. The admin shares
-        it with the new teammate, who must choose their own password at first sign-in
-        (`mustChangePassword` is `true`).
+        Admin only, and the only way an account can be created. `name` and `email` are required;
+        `phone` is optional.
       requestBody:
         required: true
         content:
@@ -2004,7 +2000,7 @@ components:
           $ref: '#/components/schemas/Password'
     CreateUserRequest:
       type: object
-      required: [name, email, phone]
+      required: [name, email]
       properties:
         name:
           type: string

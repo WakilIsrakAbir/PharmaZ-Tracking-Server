@@ -92,17 +92,25 @@ export const sessionCookieOptions = {
 };
 
 // ---------------------------------------------------------------------------
-// Phone numbers: Bangladesh mobiles are stored as +8801XXXXXXXXX
+// Phone numbers: Bangladesh mobiles (+8801XXXXXXXXX) or international numbers
 // ---------------------------------------------------------------------------
 const BD_MOBILE = /^\+8801[3-9]\d{8}$/;
+const INTL_PHONE = /^\+[1-9]\d{6,14}$/;
 
-// Accepts 01711234567, 8801711234567, +880 1711-234567 … Returns null if it isn't valid.
+// Accepts 01711234567, 8801711234567, +880 1711-234567, or international (+1..., +63...)
 function normalizePhone(input) {
   let value = String(input ?? '').replace(/[\s\-().]/g, '');
+  if (!value) return null;
   if (value.startsWith('00')) value = `+${value.slice(2)}`;
   if (value.startsWith('01')) value = `+88${value}`;
   else if (value.startsWith('880')) value = `+${value}`;
-  return BD_MOBILE.test(value) ? value : null;
+  if (BD_MOBILE.test(value)) return value;
+  if (value.startsWith('+') && INTL_PHONE.test(value)) return value;
+  if (/^\d{7,15}$/.test(value)) {
+    const withPlus = `+${value}`;
+    if (INTL_PHONE.test(withPlus)) return withPlus;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,12 +148,12 @@ export const phoneField = z
   });
 
 export const optionalPhone = z
-  .preprocess((value) => value ?? '', z.string().trim())
+  .preprocess((value) => (value === '' || value === undefined ? null : value), z.string().trim().nullable())
   .transform((value, ctx) => {
-    if (!value) return '';
+    if (!value) return null;
     const normalized = normalizePhone(value);
     if (!normalized) {
-      ctx.addIssue({ code: 'custom', message: 'Phone number should look like 01711-234567.' });
+      ctx.addIssue({ code: 'custom', message: 'Please enter a valid phone number, e.g. 01711-234567 or +1234567890.' });
       return z.NEVER;
     }
     return normalized;
