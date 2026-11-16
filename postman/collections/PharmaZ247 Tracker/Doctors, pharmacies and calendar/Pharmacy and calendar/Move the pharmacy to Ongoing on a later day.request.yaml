@@ -1,0 +1,39 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{pharmacyId}}/status'
+order: 6000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "ongoing",
+      "visitDate": "{{pharmacyNextVisitDate}}",
+      "note": "Demo done. Next visit to start the setup."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // The day after the demo visit, at the same time (05:00 UTC, 11:00 AM in Dhaka).
+      const next = new Date(pm.collectionVariables.get('pharmacyVisitDate'));
+      next.setUTCDate(next.getUTCDate() + 1);
+      pm.collectionVariables.set('pharmacyNextVisitDate', next.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('the pharmacy is now in Ongoing, on the later day', () => {
+        pm.expect(pharmacy.status).to.eql('ongoing');
+        pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitDate'));
+      });
+      pm.test('the history keeps the demo visit and adds the new one', () => {
+        const history = pharmacy.history || [];
+        pm.expect(history).to.have.lengthOf(2);
+        pm.expect(history[0].status).to.eql('demo');
+        pm.expect(history[0].visitDate).to.eql(pm.collectionVariables.get('pharmacyVisitDate'));
+        pm.expect(history[1].status).to.eql('ongoing');
+      });

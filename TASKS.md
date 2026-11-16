@@ -33,6 +33,8 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
   - all form fields
 - [x] The view lives in the URL, so it can be shared and survives a refresh
 - [x] Phones: dots on the calendar, details below it
+- [x] **Earlier visits stay on the calendar** (16 Nov 2026): a new status on another day adds a visit and the earlier one stays on its day, faded; the same status on a new day moves it (rescheduled); read from the history, so older onboardings show their earlier visits too. The day list says where a faded visit stands now. "N onboardings" and the year overview count an onboarding once a month
+- [x] Calendar chips show the doctor's or pharmacy's name instead of the time (the time is in the tooltip and the day list)
 
 ### Lists
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form
@@ -90,7 +92,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (125 tests, 657 checks as of 28 Oct 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (130 tests, 688 checks as of 16 Nov 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---

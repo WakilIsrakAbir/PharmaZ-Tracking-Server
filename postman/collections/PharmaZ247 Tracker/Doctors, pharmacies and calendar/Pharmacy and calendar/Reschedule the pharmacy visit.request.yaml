@@ -1,0 +1,32 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{pharmacyId}}/status'
+order: 7000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "ongoing",
+      "visitDate": "{{pharmacyMovedVisitDate}}",
+      "note": "The owner asked to come a day later."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // One more day later, still Ongoing: the visit is rescheduled, not a new stage.
+      const moved = new Date(pm.collectionVariables.get('pharmacyNextVisitDate'));
+      moved.setUTCDate(moved.getUTCDate() + 1);
+      pm.collectionVariables.set('pharmacyMovedVisitDate', moved.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('the visit is on the new day, still in Ongoing', () => {
+        pm.expect(pharmacy.status).to.eql('ongoing');
+        pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('pharmacyMovedVisitDate'));
+      });

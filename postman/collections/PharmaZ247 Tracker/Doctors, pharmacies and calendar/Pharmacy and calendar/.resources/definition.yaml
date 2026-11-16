@@ -1,5 +1,7 @@
 $kind: collection
 description: |-
   Still signed in as the field marketer. Checks the calendar's date-range rules, submits a pharmacy
-  form, and checks that the calendar lists doctors and pharmacies together, soonest first.
+  form, and checks that the calendar lists doctors and pharmacies together, soonest first. Then moves
+  the pharmacy from Demo to Ongoing on a later day (the demo visit stays on its day), reschedules the
+  Ongoing visit (it moves), and checks that the year overview counts the pharmacy once a month.
 order: 3000

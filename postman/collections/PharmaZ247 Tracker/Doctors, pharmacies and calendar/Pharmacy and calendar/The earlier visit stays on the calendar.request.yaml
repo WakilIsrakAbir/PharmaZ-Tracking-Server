@@ -1,0 +1,53 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTo}}'
+order: 6500
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTo}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Today at 00:00 UTC, and seven days later.
+      const from = new Date();
+      from.setUTCHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 7);
+      pm.collectionVariables.set('calendarFrom', from.toISOString());
+      pm.collectionVariables.set('calendarTo', to.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const visits = items.filter((item) => item.id === pm.collectionVariables.get('pharmacyId'));
+      const [demo = {}, ongoing = {}] = visits;
+      pm.test('the pharmacy shows on both days: the demo stays, the new visit is added', () => {
+        pm.expect(visits).to.have.lengthOf(2);
+        pm.expect(demo.status).to.eql('demo');
+        pm.expect(demo.visitDate).to.eql(pm.collectionVariables.get('pharmacyVisitDate'));
+        pm.expect(ongoing.status).to.eql('ongoing');
+        pm.expect(ongoing.visitDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitDate'));
+      });
+      pm.test('only the new visit is the current one, and both say where the pharmacy stands now', () => {
+        pm.expect(demo.current).to.eql(false);
+        pm.expect(ongoing.current).to.eql(true);
+        const now = { status: 'ongoing', visitDate: pm.collectionVariables.get('pharmacyNextVisitDate') };
+        pm.expect(demo.now).to.eql(now);
+        pm.expect(ongoing.now).to.eql(now);
+        pm.expect(demo.steps).to.eql(null);
+      });
+      pm.test('every visit has its own key', () => {
+        const keys = items.map((item) => item.key);
+        keys.forEach((key) => pm.expect(key).to.match(/^[a-f0-9]{24}:\d{4}-\d{2}-\d{2}$/));
+        pm.expect(new Set(keys).size).to.eql(keys.length);
+      });
+      pm.test('the doctor, whose status changed several times on one day, shows once', () => {
+        const doctorVisits = items.filter((item) => item.id === pm.collectionVariables.get('doctorId'));
+        pm.expect(doctorVisits).to.have.lengthOf(1);
+        pm.expect(doctorVisits[0].status).to.eql('implementation');
+        pm.expect(doctorVisits[0].current).to.eql(true);
+      });

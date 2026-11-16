@@ -9,7 +9,7 @@
 ## 1. What it does
 
 1. **A marketing team member fills in a form.** The doctor form has the same 15 numbered fields as the paper "Doctor Onboarding Form". The pharmacy form is a 13-field draft. Each form also gets a **visit date and time** and a **status**: *Demo → Ongoing → Setup → Implementation → Support*. The marketing team plans visits for today or a later day; an admin can also enter a visit that already happened. The form is saved under the person's **name and phone number** from their account, so there is nothing extra to type.
-2. **The form appears on the calendar** on its visit date. The home page, the **Dashboard** (`/`), is the month calendar on the left and a details panel on the right. Its **New doctor form** and **New pharmacy form** buttons open a new form for the picked day (for the marketing team, today when a past day is picked: past days are greyed and only show what happened; an admin can add an onboarding on a past day too). The count beside the month name opens a **year overview**: every month with its number of onboardings, and a click opens that month.
+2. **The form appears on the calendar** on its visit date, as a chip with the doctor's or pharmacy's name (the time is in the day list and the chip's tooltip). When a status update moves an onboarding to a **new status on another day**, the earlier visit **stays on its day** (faded, with the status it had then) and the new one is added; a **new day with the same status** moves the visit (rescheduled); a new status on the same day changes that day's chip. The calendar reads these visits from the history. The home page, the **Dashboard** (`/`), is the month calendar on the left and a details panel on the right. Its **New doctor form** and **New pharmacy form** buttons open a new form for the picked day (for the marketing team, today when a past day is picked: past days are greyed and only show what happened; an admin can add an onboarding on a past day too). The count beside the month name opens a **year overview**: every month with its number of onboardings, and a click opens that month.
 3. **Click a visit** and the details open beside the calendar, in two sections:
    - **Details** (read only): the person or pharmacy with, right under the name, **who submitted it** and **who is assigned** (admins have the **Assign** button there), then the place (with Google Maps), the phone (Call / WhatsApp) and the notes;
    - **Status** (the part you can change, framed in blue so it stands out): a new status, the next visit date, a note and the implementation steps, then **Save update**. **Edit form** sits on the right of the Status title. Below it, the history of every change (who made it and when).
@@ -65,7 +65,7 @@ To add or change a field, edit three places: the model in this repo (`src/models
 | **Implementation** | Going live in PharmaZ247 | Green |
 | **Support** | Live; the team now visits to support them | Violet |
 
-Every status change (from the details panel, or by editing the form) adds an entry to the record's **history**: the status, the visit date, an optional note, who made the change and when.
+Every status change (from the details panel, or by editing the form) adds an entry to the record's **history**: the status, the visit date, an optional note, who made the change and when. The calendar shows one visit per stage from this history (`visitEvents` in `models/shared.js`): Demo on the 3rd updated to Ongoing on the 10th shows on both days; an onboarding counts once a month in the "N onboardings" count and the year overview.
 
 **Implementation in steps.** Going live can take several visits. While a form is in *Implementation*, the status box shows a checklist:
 - add the steps (for example "Train the chamber assistant"), tick each one off when it's done, then **Save update**;
@@ -92,8 +92,8 @@ The full contract, with examples, is in [openapi.yaml](openapi.yaml).
 | PUT | `/doctors/:id/assignees` | admin | Who is assigned, by email (teammates or outside addresses) → history; newly assigned people are emailed the form |
 | DELETE | `/doctors/:id` | admin | Delete the form and its history |
 | … | `/pharmacies/…` | | The same endpoints, for pharmacies |
-| GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days) |
-| GET | `/calendar/months?year=` | signed in | How many visits each month of a year has (for the year overview) |
+| GET | `/calendar?from=&to=` | signed in | Every doctor and pharmacy visit in a date range (at most 62 days), earlier stages included |
+| GET | `/calendar/months?year=` | signed in | How many onboardings have a visit each month of a year (for the year overview) |
 | GET · POST | `/support-calls` | admin, support | The call log, a page at a time (`?search=&status=&type=&createdBy=&from=&to=&sort=&page=&limit=`, with open / resolved counts) / log a call |
 | GET · PUT | `/support-calls/:id` | admin, support (own) | One call / save the edited call |
 | PATCH | `/support-calls/:id/status` | admin, support (own) | Open ↔ Resolved |

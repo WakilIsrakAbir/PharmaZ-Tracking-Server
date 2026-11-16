@@ -1,0 +1,26 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{calendarFrom}}&to={{calendarTo}}'
+order: 7500
+queryParams:
+  - key: from
+    value: '{{calendarFrom}}'
+  - key: to
+    value: '{{calendarTo}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const visits = items.filter((item) => item.id === pm.collectionVariables.get('pharmacyId'));
+      const days = visits.map((item) => item.visitDate);
+      pm.test('the Ongoing visit moved to the new day; nothing is left on the old one', () => {
+        pm.expect(days).to.include(pm.collectionVariables.get('pharmacyMovedVisitDate'));
+        pm.expect(days).to.not.include(pm.collectionVariables.get('pharmacyNextVisitDate'));
+      });
+      pm.test('the demo visit still stays on its day', () => {
+        pm.expect(visits).to.have.lengthOf(2);
+        pm.expect(visits[0].status).to.eql('demo');
+        pm.expect(visits[0].visitDate).to.eql(pm.collectionVariables.get('pharmacyVisitDate'));
+      });

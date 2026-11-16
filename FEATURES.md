@@ -47,14 +47,15 @@ Only an admin can create accounts. There is no public sign-up, so nobody outside
 
 The admin's main view, and everyone's starting point.
 
-- **Month calendar** with every onboarding on its visit day. A small icon shows doctor or pharmacy; the colour shows the status (section 6).
+- **Month calendar** with every onboarding on its visit day. Each chip shows the doctor's or pharmacy's **name** with a small icon for doctor or pharmacy; the colour shows the status (section 6). The time is in the day list on the right, and in the chip's tooltip.
+- **Earlier visits stay.** When an update moves an onboarding to a new status on another day (Demo on the 3rd → Ongoing on the 10th), the Demo chip stays on the 3rd, faded, and the Ongoing chip is added on the 10th. In the day list, a faded visit says where the onboarding stands now ("→ Now Ongoing · Tue 10 Nov"). Changing only the day (same status) moves the visit, since it was rescheduled; changing the status on the same day changes that day's chip.
 - **Today** is highlighted; the week starts on Saturday and Friday is shaded, as in Bangladesh.
 - **Filter:** All · Doctors · Pharmacies.
 - **Click a day** → that day's onboardings appear on the right, with name, place, status, who entered it and who is assigned.
 - **Click an onboarding** → its full details open on the right (section 5).
 - **New doctor form / New pharmacy form** at the top open a blank form for the chosen day. These buttons stay in view while scrolling.
 - **Past days are greyed out.** What happened on them can still be opened and updated. The marketing team can't plan anything new there (a visit is today or a later day); an admin can, to enter an onboarding that already happened.
-- **The count beside the month name** ("12 onboardings") opens a **year overview**: all twelve months with their numbers (doctors and pharmacies), with arrows to other years. Clicking a month opens it on the calendar.
+- **The count beside the month name** ("12 onboardings") opens a **year overview**: all twelve months with their numbers (doctors and pharmacies), with arrows to other years. Clicking a month opens it on the calendar. An onboarding with two visits in a month counts once there.
 - On a laptop the whole month fits the screen and stays put; only the details on the right scroll. On a phone the details appear under the calendar.
 - A busy day shows the first onboarding and "+2 more"; one click lists them all.
 - A link to a specific day or onboarding can be copied from the address bar and shared with a colleague.

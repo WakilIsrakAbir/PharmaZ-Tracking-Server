@@ -976,10 +976,22 @@ paths:
       operationId: getCalendar
       summary: List the visits in a date range
       description: |
-        Doctors and pharmacies whose `visitDate` is on or after `from` and before `to`, soonest
-        first. The web app asks for the weeks it is showing, for example a whole month grid.
-        Marketing users get the visits they submitted or were assigned to; admins get the whole
-        team's. `createdBy` says whose visit it is and `assignedTo` who else is on it.
+        Every doctor and pharmacy visit on or after `from` and before `to`, soonest first. The web
+        app asks for the weeks it is showing, for example a whole month grid. Marketing users get
+        the visits they submitted or were assigned to; admins get the whole team's. `createdBy` says
+        whose visit it is and `assignedTo` who else is on it.
+
+        A record can have more than one visit: they are read from its history, one per stage of the
+        onboarding.
+        - A status update with a **new status on another day** adds a visit on that day; the earlier
+          visit stays on its own day, with the status it had then.
+        - A **new day with the same status** moves the visit (it was rescheduled).
+        - A **new status on the same day** changes that day's visit to the new status.
+        - Notes, implementation steps and assigning people add no visit.
+
+        A record has at most one visit a day. Its last visit is where it stands now (`current: true`,
+        the record's own `status` and `visitDate`); `now` is the same on every visit of the record.
+        `id` is the record's id, shared by its visits; `key` tells the visits apart.
 
         `place` is the line the calendar shows under the name: the doctor's chamber name (or the
         address when there is none), or the pharmacy's name.
@@ -1043,9 +1055,10 @@ paths:
       summary: How many visits each month of a year has
       description: |
         For the year overview on the dashboard: one entry per month, January to December, with the
-        number of doctor and pharmacy visits whose `visitDate` falls in that month (Asia/Dhaka), and
-        the total. Months with nothing are included with zeros. Marketing users see only their own
-        and assigned visits counted; admins the whole team's.
+        number of doctors and pharmacies that have a visit in that month (Asia/Dhaka, the visits of
+        `GET /calendar`), and the total. A doctor or pharmacy with several visits in one month counts
+        once in that month. Months with nothing are included with zeros. Marketing users see only
+        their own and assigned onboardings counted; admins the whole team's.
       parameters:
         - name: year
           in: query
@@ -2408,11 +2421,30 @@ components:
     # ---------- Calendar ----------
     CalendarItem:
       type: object
-      description: One visit on the calendar.
-      required: [id, type, name, place, address, status, steps, visitDate, phone, createdBy, assignedTo]
+      description: One visit on the calendar. A record with several visits has one item for each.
+      required: [id, key, type, name, place, address, status, current, now, steps, visitDate, phone, createdBy, assignedTo]
       properties:
         id:
-          $ref: '#/components/schemas/ObjectId'
+          description: The doctor's or pharmacy's id (the same on each of its visits).
+          allOf:
+            - $ref: '#/components/schemas/ObjectId'
+        key:
+          type: string
+          description: Tells this visit apart from the record's other visits; the id and the visit's day in Dhaka.
+          pattern: '^[a-f\d]{24}:\d{4}-\d{2}-\d{2}$'
+          examples: ['6717c3a1c2b1e45d8a0f3d01:2026-10-21']
+        current:
+          type: boolean
+          description: True for the record's latest visit (where it stands now), false for an earlier stage.
+        now:
+          type: object
+          description: Where the record stands now, the same on each of its visits.
+          required: [status, visitDate]
+          properties:
+            status:
+              $ref: '#/components/schemas/OnboardingStatus'
+            visitDate:
+              $ref: '#/components/schemas/DateTime'
         type:
           $ref: '#/components/schemas/RecordType'
         name:
@@ -2423,14 +2455,20 @@ components:
         address:
           type: string
         status:
-          $ref: '#/components/schemas/OnboardingStatus'
+          description: The status of this visit (for an earlier visit, the status the record had then).
+          allOf:
+            - $ref: '#/components/schemas/OnboardingStatus'
         steps:
-          description: How many implementation steps are done, or `null` when the record has none.
+          description: |
+            How many implementation steps are done, on the current visit only: `null` on an earlier
+            visit, or when the record has no steps.
           anyOf:
             - $ref: '#/components/schemas/StepProgress'
             - type: 'null'
         visitDate:
-          $ref: '#/components/schemas/DateTime'
+          description: When this visit is (or was).
+          allOf:
+            - $ref: '#/components/schemas/DateTime'
         phone:
           $ref: '#/components/schemas/Phone'
         createdBy:
@@ -2980,27 +3018,56 @@ components:
           total: 1
           pages: 1
     CalendarTomorrow:
-      summary: Two visits tomorrow, soonest first
+      summary: A pharmacy's Demo two days ago, then its Ongoing visit and a doctor's visit tomorrow, soonest first
       value:
         data:
           - id: '6717c3a1c2b1e45d8a0f3d01'
+            key: '6717c3a1c2b1e45d8a0f3d01:2026-10-19'
+            type: pharmacy
+            name: Rahman Pharmacy
+            place: Rahman Pharmacy
+            address: 'House 12, Road 27, Dhanmondi, Dhaka'
+            status: demo
+            current: false
+            now:
+              status: ongoing
+              visitDate: '2026-10-21T05:00:00.000Z'
+            steps: null
+            visitDate: '2026-10-19T05:00:00.000Z'
+            phone: '+8801811223344'
+            createdBy:
+              id: '6717a3f9c2b1e45d8a0f1a02'
+              name: Rafi Hasan
+            assignedTo: []
+          - id: '6717c3a1c2b1e45d8a0f3d01'
+            key: '6717c3a1c2b1e45d8a0f3d01:2026-10-21'
             type: pharmacy
             name: Rahman Pharmacy
             place: Rahman Pharmacy
             address: 'House 12, Road 27, Dhanmondi, Dhaka'
             status: ongoing
+            current: true
+            now:
+              status: ongoing
+              visitDate: '2026-10-21T05:00:00.000Z'
             steps: null
             visitDate: '2026-10-21T05:00:00.000Z'
             phone: '+8801811223344'
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan
+            assignedTo: []
           - id: '6717b2e4c2b1e45d8a0f2b10'
+            key: '6717b2e4c2b1e45d8a0f2b10:2026-10-21'
             type: doctor
             name: Dr. Tanvir Ahmed (Cardiology)
             place: Square Hospital Chambers
             address: '18/F Bir Uttam Qazi Nuruzzaman Sarak, Panthapath, Dhaka'
             status: implementation
+            current: true
+            now:
+              status: implementation
+              visitDate: '2026-10-21T11:00:00.000Z'
             steps:
               done: 1
               total: 2
@@ -3009,6 +3076,7 @@ components:
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
               name: Rafi Hasan
+            assignedTo: []
     SupportCallFormExample:
       summary: A pharmacy calls about the app
       value:

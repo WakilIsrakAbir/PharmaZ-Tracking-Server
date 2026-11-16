@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-import { STATUSES, STATUS_MESSAGE, optionalText } from '../utils.js';
+import { STATUSES, STATUS_MESSAGE, dhakaDay, optionalText } from '../utils.js';
 
 // What every onboarding record has, doctor or pharmacy: the visit date and status that the
 // marketing person sets on the form, notes, who submitted it, who is assigned to it,
@@ -21,7 +21,7 @@ const stepSchema = new mongoose.Schema(
 const historyEntrySchema = new mongoose.Schema(
   {
     status: { type: String, enum: STATUSES, required: true },
-    visitDate: { type: Date, required: true },
+    visitDate: { type: Date, required: true, index: true },   // the calendar also shows the earlier visits (see visitEvents)
     note: { type: String, default: '' },
     // How many implementation steps were done at that moment, e.g. { done: 2, total: 4 }.
     steps: { type: new mongoose.Schema({ done: Number, total: Number }, { _id: false }), default: null },
@@ -96,6 +96,34 @@ export function allOf(...filters) {
   const parts = filters.filter((filter) => Object.keys(filter).length > 0);
   if (parts.length <= 1) return parts[0] ?? {};
   return { $and: parts };
+}
+
+// The visits a record shows on the calendar, oldest first, read from its history: one per stage of
+// the onboarding, as [{ status, visitDate, current }].
+//   • a new status on another day adds a visit there; the earlier one stays on its day
+//   • a new day with the same status moves the visit (it was rescheduled)
+//   • a new status on the same day changes that day's visit
+//   • notes, steps and assigning repeat the status and day, so they change nothing
+// At most one visit a day (the later one wins). The last visit is where the record stands now
+// (`current`); the record's own status and visit date have the final say, which also covers a record
+// without a history.
+export function visitEvents({ status, visitDate, history = [] }) {
+  const visits = [];
+  for (const entry of [...history, { status, visitDate }]) {
+    const visit = { status: entry.status, visitDate: entry.visitDate };
+    const last = visits.at(-1);
+    const sameStage = last && (last.status === visit.status || dhakaDay(last.visitDate) === dhakaDay(visit.visitDate));
+    if (sameStage) Object.assign(last, visit);
+    else visits.push(visit);
+  }
+
+  const byDay = new Map(); // in the order they happened, so the current visit stays last
+  for (const visit of visits) {
+    const day = dhakaDay(visit.visitDate);
+    byDay.delete(day);
+    byDay.set(day, visit);
+  }
+  return [...byDay.values()].map((visit, index, all) => ({ ...visit, current: index === all.length - 1 }));
 }
 
 // { done: 2, total: 4 }, or null when there are no steps.

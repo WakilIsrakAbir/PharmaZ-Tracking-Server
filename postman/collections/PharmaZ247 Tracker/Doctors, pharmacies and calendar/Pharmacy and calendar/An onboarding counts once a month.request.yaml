@@ -1,0 +1,32 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar/months?year={{pharmacyVisitYear}}'
+order: 8000
+queryParams:
+  - key: year
+    value: '{{pharmacyVisitYear}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // The year of the demo visit, in Dhaka (UTC+6).
+      const demo = new Date(Date.parse(pm.collectionVariables.get('pharmacyVisitDate')) + 6 * 60 * 60 * 1000);
+      pm.collectionVariables.set('pharmacyVisitYear', String(demo.getUTCFullYear()));
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const months = pm.response.json().data || [];
+      // The months (in Dhaka) of the pharmacy's two visits: the demo and the moved Ongoing visit.
+      const year = pm.collectionVariables.get('pharmacyVisitYear');
+      const monthOf = (iso) => new Date(Date.parse(iso) + 6 * 60 * 60 * 1000).toISOString().slice(0, 7);
+      const demoMonth = monthOf(pm.collectionVariables.get('pharmacyVisitDate'));
+      const visitMonths = new Set([demoMonth, monthOf(pm.collectionVariables.get('pharmacyMovedVisitDate'))].filter((month) => month.startsWith(year)));
+      pm.test('the pharmacy, with two visits, counts once in the month of its demo', () => {
+        const entry = months.find((month) => month.month === demoMonth) || {};
+        pm.expect(entry.pharmacies).to.eql(1);
+      });
+      pm.test('and once in each month it has a visit, no more', () => {
+        const pharmacies = months.reduce((sum, month) => sum + month.pharmacies, 0);
+        pm.expect(pharmacies).to.eql(visitMonths.size);
+      });

@@ -72,6 +72,15 @@ variables:
   - key: pharmacyId
     value: ''
     description: Set by "Submit the sample pharmacy form".
+  - key: pharmacyNextVisitDate
+    value: ''
+    description: The day after pharmacyVisitDate, set before "Move the pharmacy to Ongoing on a later day".
+  - key: pharmacyMovedVisitDate
+    value: ''
+    description: The day after pharmacyNextVisitDate, set before "Reschedule the pharmacy visit".
+  - key: pharmacyVisitYear
+    value: ''
+    description: The year of pharmacyVisitDate in Dhaka, set before "An onboarding counts once a month".
   - key: otherUserEmail
     value: ''
     description: A second marketer, who must not see the field marketer's forms. Set before "Add a second marketer".
