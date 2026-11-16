@@ -3,9 +3,11 @@ import nodemailer from 'nodemailer';
 import { env } from './config.js';
 
 // Email, over SMTP (Gmail, Google Workspace, Brevo…: the SMTP_* settings in .env decide which).
-// Two kinds so far, both carrying the whole form:
+// Three kinds, all carrying the whole form:
 //   assigned   "you were assigned to this form", to each newly assigned person
 //   updated    "this form was edited", to everyone assigned
+//   status     "the status or the visit changed" (Save update), to everyone assigned: the new status
+//              (and the one before), the visit's start and end, and the note come first
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
 const STATUS_LABELS = {
@@ -35,12 +37,13 @@ function mailer() {
 // Emails the form to each recipient ({ name, email }). Never throws: the result says who got the
 // email and who didn't, and why not, so the person who acted can be told ("Saved, but the email to
 // Rafi couldn't be sent: the mail server refused the address").
-//   reason  'assigned' | 'updated'
-//   by      the signed-in user who assigned or edited (replies go to them)
+//   reason  'assigned' | 'updated' | 'status'
+//   by      the signed-in user who assigned, edited or updated (replies go to them)
+//   change  for 'status': { previousStatus, note }
 //   → { configured, sent: [names], failed: [{ name, reason }] }
 // "Sent" means the mail server took the email. Whether it lands in the inbox, in spam or bounces is
 // decided later by the recipient's mail service, which the API can't see.
-export async function sendRecordEmails({ record, type, recipients, by, reason }) {
+export async function sendRecordEmails({ record, type, recipients, by, reason, change = {} }) {
   const report = { configured: env.emailEnabled, sent: [], failed: [] };
   if (recipients.length === 0) return report;
   if (!env.emailEnabled) {
@@ -49,7 +52,7 @@ export async function sendRecordEmails({ record, type, recipients, by, reason })
   }
 
   const results = await Promise.allSettled(
-    recipients.map((person) => mailer().sendMail(recordEmail({ record, type, person, by, reason }))),
+    recipients.map((person) => mailer().sendMail(recordEmail({ record, type, person, by, reason, change }))),
   );
   results.forEach((result, index) => {
     const { name } = recipients[index];
@@ -74,39 +77,67 @@ function reasonFor(error) {
 // ---------------------------------------------------------------------------
 // The email itself
 // ---------------------------------------------------------------------------
-function recordEmail({ record, type, person, by, reason }) {
+function recordEmail({ record, type, person, by, reason, change = {} }) {
   const kind = TYPE_LABELS[type];
-  const visit = formatVisit(record.visitDate);
+  const visit = formatVisit(record.visitDate, record.visitEndDate);
   const link = `${env.appUrl}${TYPE_PATHS[type]}/${record._id}`;
   const displayName = record.name || `Unnamed ${kind}`;
-  const rows = [
-    ...formRows(type, record),
-    ['Status', STATUS_LABELS[record.status] ?? record.status],
-    ['Visit', visit],
-    ['Notes', record.notes],
-    ['Implementation steps', record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n')],
-    ['Submitted by', personLine(record.createdBy)],
-    [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
-  ].filter(([, value]) => (typeof value === 'object' ? value.text : value)); // leave out empty fields
-
-  const intro =
-    reason === 'updated'
-      ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${displayName}. Here is the form as it is now.`
-      : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${displayName}.`;
-  const subject =
-    reason === 'updated'
-      ? `Updated: ${displayName} (${kind}) · visit ${visit}`
-      : `Assigned to you: ${displayName} (${kind}) · visit ${visit}`;
-
+  const status = STATUS_LABELS[record.status] ?? record.status;
+  const steps = record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n');
+  const { intro, subject, rows } =
+    reason === 'status'
+      ? statusUpdate({ record, type, kind, displayName, status, visit, steps, by, change })
+      : {
+          intro:
+            reason === 'updated'
+              ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${displayName}. Here is the form as it is now.`
+              : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${displayName}.`,
+          subject: reason === 'updated' ? `Updated: ${displayName} (${kind}) · visit ${visit}` : `Assigned to you: ${displayName} (${kind}) · visit ${visit}`,
+          rows: [
+            ...formRows(type, record),
+            ['Status', status],
+            ['Visit', visit],
+            ['Notes', record.notes],
+            ['Implementation steps', steps],
+            ['Submitted by', personLine(record.createdBy)],
+            [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
+          ],
+        };
   return {
     from: env.EMAIL_FROM,
     to: person.name && person.name !== person.email ? `"${person.name}" <${person.email}>` : person.email,
     replyTo: by.email,
     subject,
-    text: textBody({ person, by, intro, rows, link }),
-    html: htmlBody({ person, by, intro, rows, link }),
+    text: textBody({ person, by, intro, rows: filled(rows), link }),
+    html: htmlBody({ person, by, intro, rows: filled(rows), link }),
   };
 }
+
+// A status update ("Save update"): what changed comes first, then the whole form.
+//   Subject: "Rahman Pharmacy (Pharmacy) is now Implementation · visit Tue 17 Nov 2026, 12:30 PM – 2:00 PM"
+//   (or "Visit moved: …" when only the day or time changed)
+function statusUpdate({ record, type, kind, displayName, status, visit, steps, by, change }) {
+  const before = change.previousStatus && change.previousStatus !== record.status ? (STATUS_LABELS[change.previousStatus] ?? change.previousStatus) : '';
+  return {
+    intro: before
+      ? `${by.name} updated the ${kind.toLowerCase()} onboarding of ${displayName}: it moved from ${before} to ${status}. The visit is ${visit}.`
+      : `${by.name} changed the visit of the ${kind.toLowerCase()} onboarding of ${displayName} (still in ${status}). The visit is now ${visit}.`,
+    subject: before ? `${displayName} (${kind}) is now ${status} · visit ${visit}` : `Visit moved: ${displayName} (${kind}) · ${visit}`,
+    rows: [
+      ['Status', before ? `${status} (was ${before})` : status],
+      ['Visit', visit],
+      ['Update note', change.note],
+      ['Implementation steps', steps],
+      ['Updated by', personLine(by)],
+      ...formRows(type, record),
+      ['Notes', record.notes],
+      ['Submitted by', personLine(record.createdBy)],
+    ],
+  };
+}
+
+// Leaves out the empty fields.
+const filled = (rows) => rows.filter(([, value]) => (typeof value === 'object' ? value.text : value));
 
 function textBody({ person, by, intro, rows, link }) {
   // A value with a link (the address) gets the URL on its own line under it.
@@ -229,18 +260,12 @@ function formatPhone(phone) {
 
 const formatTaka = (amount) => (amount === null || amount === undefined ? '' : `৳${new Intl.NumberFormat('en-IN').format(amount)}`);
 
-// "Thu 29 Oct 2026, 4:00 pm" in Dhaka time
-function formatVisit(date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Dhaka',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(new Date(date));
+// "Thu 29 Oct 2026, 4:00 PM", or with an end time "Thu 29 Oct 2026, 4:00 PM – 5:30 PM", in Dhaka time
+function formatVisit(start, end) {
+  const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(start));
+  const clock = (date) =>
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(date));
+  return `${day}, ${clock(start)}${end ? ` – ${clock(end)}` : ''}`;
 }
 
 // "17:00" → "5:00 PM"

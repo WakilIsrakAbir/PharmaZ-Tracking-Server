@@ -30,3 +30,6 @@ scripts:
         pm.expect(pharmacy.status).to.eql('ongoing');
         pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('pharmacyMovedVisitDate'));
       });
+      pm.test('the moved visit has no end time, since none was sent with the new start', () => {
+        pm.expect(pharmacy.visitEndDate).to.eql(null);
+      });

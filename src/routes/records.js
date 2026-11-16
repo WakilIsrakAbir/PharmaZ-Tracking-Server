@@ -20,6 +20,7 @@ import {
   pageQuery,
   requiredText,
   searchFilter,
+  visitEndProblem,
 } from '../utils.js';
 
 // The endpoints for one kind of onboarding record. Used twice in app.js:
@@ -30,7 +31,8 @@ import {
 //   POST   /                submit a new form
 //   GET    /:id             one record
 //   PUT    /:id             save the edited form (everyone assigned is emailed the new version)
-//   PATCH  /:id/status      the status update: new status, visit date, note, implementation steps
+//   PATCH  /:id/status      the status update: new status, visit date and end time, note, implementation
+//                           steps (a new status or visit time is emailed to everyone assigned)
 //   PUT    /:id/assignees   admins only: who is assigned, by email (newly assigned people get an email)
 //   DELETE /:id             admins only
 //
@@ -84,6 +86,8 @@ const stepsInput = z
 const statusBody = z.object({
   status: z.enum(STATUSES, { error: STATUS_MESSAGE }),
   visitDate: z.coerce.date({ error: 'Please pick a valid date.' }).optional(),
+  // null (or "") for no end time; left out, see the status update below.
+  visitEndDate: z.preprocess((value) => (value === '' ? null : value), z.coerce.date({ error: 'Please pick a valid end time.' }).nullable().optional()),
   note: optionalText(500),
   implementationSteps: stepsInput.optional(),
 });
@@ -152,7 +156,7 @@ export function recordRoutes(Model, input) {
     const record = await Model.create({
       ...values,
       createdBy: req.user._id,
-      history: [{ status: values.status, visitDate: values.visitDate, note: 'Form submitted', by: req.user._id }],
+      history: [{ status: values.status, visitDate: values.visitDate, visitEndDate: values.visitEndDate, note: 'Form submitted', by: req.user._id }],
     });
     res.status(201).json({ data: await record.populate(PEOPLE) });
   });
@@ -166,11 +170,14 @@ export function recordRoutes(Model, input) {
     const record = await findRecord(req.valid.params.id, req.user);
     const values = req.valid.body;
     assertVisitNotInPast(req.user, values.visitDate, record.visitDate);
-    const moved = values.status !== record.status || values.visitDate.getTime() !== record.visitDate.getTime();
+    const moved =
+      values.status !== record.status ||
+      values.visitDate.getTime() !== record.visitDate.getTime() ||
+      timeOf(values.visitEndDate) !== timeOf(record.visitEndDate);
 
     record.set(values);
     if (moved) {
-      record.history.push({ status: values.status, visitDate: values.visitDate, note: 'Form updated', by: req.user._id });
+      record.history.push({ status: values.status, visitDate: values.visitDate, visitEndDate: values.visitEndDate, note: 'Form updated', by: req.user._id });
     }
     await record.save();
     await record.populate(PEOPLE);
@@ -186,17 +193,34 @@ export function recordRoutes(Model, input) {
     const record = await findRecord(req.valid.params.id, req.user);
     const { status, visitDate = record.visitDate, note, implementationSteps } = req.valid.body;
     assertVisitNotInPast(req.user, visitDate, record.visitDate);
+    // Without `visitEndDate`, the end time stays while the visit keeps its start; a visit that moves
+    // to a new start has no end time until one is given.
+    let { visitEndDate } = req.valid.body;
+    if (visitEndDate === undefined) visitEndDate = visitDate.getTime() === record.visitDate.getTime() ? record.visitEndDate : null;
+    const endProblem = visitEndProblem(visitDate, visitEndDate);
+    if (endProblem) throw ApiError.validation({ visitEndDate: endProblem });
+
+    // A new status, or a new day or time for the visit, is emailed to everyone assigned (not to the
+    // person who made it). A note or the steps alone are not, so inboxes don't fill up.
+    const moved =
+      status !== record.status || visitDate.getTime() !== record.visitDate.getTime() || timeOf(visitEndDate) !== timeOf(record.visitEndDate);
+    const previousStatus = record.status;
 
     record.status = status;
     record.visitDate = visitDate;
+    record.visitEndDate = visitEndDate;
     if (implementationSteps) record.implementationSteps = updatedSteps(record.implementationSteps, implementationSteps);
 
     // While in Implementation, the history also remembers how many steps were done.
     const steps = status === 'implementation' ? countSteps(record.implementationSteps) : null;
-    record.history.push({ status, visitDate, note, steps, by: req.user._id });
+    record.history.push({ status, visitDate, visitEndDate, note, steps, by: req.user._id });
     await record.save();
+    await record.populate(PEOPLE);
 
-    res.json({ data: await record.populate(PEOPLE) });
+    // `meta.email` says who was emailed (nobody when nothing but a note or the steps changed).
+    const recipients = moved ? record.assignedTo.map(assigneeJson).filter((person) => person.email !== req.user.email) : [];
+    const email = await sendRecordEmails({ record, type: kind, recipients, by: req.user, reason: 'status', change: { previousStatus, note } });
+    res.json({ data: record, meta: { email } });
   });
 
   // "Assign" in the details panel. Any email address can be assigned: a teammate's address links
@@ -227,7 +251,7 @@ export function recordRoutes(Model, input) {
       const note = [added.length && `Assigned to ${names(added)}`, removed.length && `No longer assigned: ${names(removed)}`]
         .filter(Boolean)
         .join('. ');
-      record.history.push({ status: record.status, visitDate: record.visitDate, note, by: req.user._id });
+      record.history.push({ status: record.status, visitDate: record.visitDate, visitEndDate: record.visitEndDate, note, by: req.user._id });
     }
     await record.save();
 
@@ -243,6 +267,9 @@ export function recordRoutes(Model, input) {
 
   return router;
 }
+
+// A moment as a number to compare, or null when there is none (an end time that wasn't given).
+const timeOf = (date) => date?.getTime() ?? null;
 
 // "Rafi Hasan, sumi@example.com"
 const names = (people) => people.map((person) => person.name).join(', ');

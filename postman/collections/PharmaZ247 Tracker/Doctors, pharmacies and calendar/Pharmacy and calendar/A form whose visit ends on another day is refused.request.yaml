@@ -1,0 +1,32 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 4500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Overnight Pharmacy",
+      "visitDate": "{{pharmacyVisitDate}}",
+      "visitEndDate": "{{overnightEndDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // The next day, at the same time: a visit ends later the same day, so this is refused.
+      const end = new Date(pm.collectionVariables.get('pharmacyVisitDate'));
+      end.setUTCDate(end.getUTCDate() + 1);
+      pm.collectionVariables.set('overnightEndDate', end.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      const error = pm.response.json().error || {};
+      pm.test('the end time must be later the same day', () => {
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields && error.fields.visitEndDate).to.be.a('string');
+      });

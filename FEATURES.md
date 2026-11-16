@@ -34,11 +34,11 @@ Only an admin can create accounts. There is no public sign-up, so nobody outside
 
 ## 3. How it works, day to day
 
-1. **An onboarding is entered.** The admin or a marketing person opens the **Dashboard**, taps **New doctor form** or **New pharmacy form**, fills in the form, sets the visit date and time, and submits. It appears on the calendar at once.
+1. **An onboarding is entered.** The admin or a marketing person opens the **Dashboard**, taps **New doctor form** or **New pharmacy form**, fills in the form, sets the visit date, the start time and (if known) the end time, and submits. It appears on the calendar at once.
 2. **The admin sees it on the calendar** along with every other onboarding, colour-coded by status: what is planned for tomorrow, next week, next month.
 3. **The admin assigns who will go.** From the onboarding's details, the admin picks one or more people with the **Assign** button. Each of them receives an email with the whole form (address with map link, phone, fees, notes…) and from then on sees the visit on their own calendar.
 4. **After the visit**, the assigned person opens the onboarding, moves the status forward (for example *Setup → Implementation*), ticks off the steps done, adds a note and saves.
-5. **If the form is edited**, everyone assigned gets the updated version by email automatically.
+5. **If the form is edited**, everyone assigned gets the updated version by email automatically. **When the status or the visit time changes** (Save update after a visit), everyone assigned is emailed the new status, the visit's start and end time and the note.
 6. **At any time**, the admin can open the history of an onboarding to see who did what, and when, and can change who is assigned.
 
 ---
@@ -48,7 +48,7 @@ Only an admin can create accounts. There is no public sign-up, so nobody outside
 The admin's main view, and everyone's starting point.
 
 - **Month calendar** with every onboarding on its visit day. Each chip shows the doctor's or pharmacy's **name** with a small icon for doctor or pharmacy; the colour shows the status (section 6). The time is in the day list on the right, and in the chip's tooltip.
-- **Earlier visits stay.** When an update moves an onboarding to a new status on another day (Demo on the 3rd → Ongoing on the 10th), the Demo chip stays on the 3rd, faded, and the Ongoing chip is added on the 10th. In the day list, a faded visit says where the onboarding stands now ("→ Now Ongoing · Tue 10 Nov"). Changing only the day (same status) moves the visit, since it was rescheduled; changing the status on the same day changes that day's chip.
+- **Earlier visits stay.** When an update moves an onboarding to a new status on another day (Demo on the 3rd → Ongoing on the 10th), the Demo chip stays on the 3rd, faded, and the Ongoing chip is added on the 10th. In the day list on the right, every visit says **Latest** (where the onboarding stands now) or **Updated later**, right beside its status, and an earlier visit shows where the onboarding stands now ("Now ● Ongoing · Tue 10 Nov · 11:00 AM"); the day says how many were updated later. Opening an earlier visit shows a note above its details, with **Go to the latest visit**. Changing only the day (same status) moves the visit, since it was rescheduled; changing the status on the same day changes that day's chip.
 - **Today** is highlighted; the week starts on Saturday and Friday is shaded, as in Bangladesh.
 - **Filter:** All · Doctors · Pharmacies.
 - **Click a day** → that day's onboardings appear on the right, with name, place, status, who entered it and who is assigned.
@@ -108,6 +108,7 @@ This is the admin's tool for planning the team's visits.
 - Assignments can be changed at any time: add someone, remove someone, or hand an onboarding over when a person leaves. The history records "Assigned to …" and "No longer assigned: …".
 - **What the assigned person receives by email:** the whole form (every field, the status, the visit date and time, the address with a map link, the phone, the notes, the steps), who entered it, who assigned them, and an *Open in the tracker* button. Replies go straight to the admin.
 - **When the form is edited**, everyone assigned receives the new version by email, so nobody travels with old information.
+- **When the status or the visit changes** (Save update), everyone assigned receives an email that starts with what changed: "Status: Setup (was Account Creation)", the visit ("Fri, 6 Nov 2026, 10:00 AM – 11:30 AM") and the note, followed by the whole form. The person who made the update is not emailed, and a note or the steps alone send no email. After saving, the app says who was emailed (in red if an email couldn't be sent).
 - **Clear feedback after Save.** A green message says who is assigned now and who was emailed. A **red message with the reason** appears when something didn't go through: an outside address that isn't an email address (nothing is saved), the server refusing the save, email not being set up on the server, or the mail server refusing to send to someone (that person stays assigned). An outside person typed in but not yet added with the **Add** button is added on Save, so they are never quietly left out.
 - *"Sent" means the mail server took the email.* Whether it lands in the inbox or in spam is decided afterwards by the recipient's mail service (for example Microsoft 365 at a company domain), which the tracker can't see.
 
@@ -117,7 +118,7 @@ This is the admin's tool for planning the team's visits.
 
 - **Doctor form:** the 15 numbered fields of the paper form, in the same order: name, BMDC number, phone, email, chamber name and address, consultation type, chamber number, slot duration, available days and hours, and the four fees.
 - **Pharmacy form:** 13 fields: name, owner, phone, email, drug and trade licence numbers, address, area, district, opening days and hours, home delivery, payment methods (Cash, bKash, Nagad, Card).
-- Under the fields: the **visit date and time** (this puts it on the calendar; today or later for the marketing team, while an admin can also pick a day that has passed, for a visit entered after the fact), the **status**, and **notes**.
+- Under the fields: the **visit date**, the **start time** and an optional **end time** (this puts it on the calendar; today or later for the marketing team, while an admin can also pick a day that has passed, for a visit entered after the fact), the **status**, and **notes**.
 - Required fields are marked with *; a clear message appears under any field that needs fixing.
 - The form shows the **name and phone of the person entering it**, taken from their account, so nothing extra has to be typed.
 
@@ -127,7 +128,8 @@ This is the admin's tool for planning the team's visits.
 
 **Doctors / Pharmacies lists**
 - Every onboarding of that type, **twenty to a page** (10, 20 or 50 can be chosen). At the bottom of the screen, always: "Showing 21–40 of 134" and the page numbers (the bar stays at the bottom while a long list scrolls). While the next page loads, the rows on screen fade a little instead of disappearing, so the list never jumps.
-- **Status tabs** (with counts) and a **search box** (name, phone, BMDC number, chamber, owner, area).
+- **Status tabs** (with counts) and a **search box**, by name first (also phone, BMDC number, chamber, owner, area). Every word counts, in any order: "ahmed tanvir" finds Dr. Tanvir Ahmed. The box says how many were found, the words are marked in the names, and ✕ or Esc clears it.
+- **Pages that fit the screen:** each list (doctors, pharmacies, call log, team) shows as many rows as fit on the screen, so nothing needs scrolling; a bigger screen shows more. *Per page* says *Auto (7)*, and 10, 20 or 50 can be picked instead. Phones show at least 5 rows. On laptops and larger screens the title, tabs, search, filters and column titles stay put; when a bigger page size is picked, only the rows scroll.
 - **Filters** under the tabs: *Assigned to* (anyone, no one yet, me, or a teammate), *Submitted by* (admins only), *Visit date* (any time, today, upcoming, past) and the **order** (newest visit, oldest visit, name, last updated). A filter that is narrowing the list is tinted, and *Clear* resets them all. The counts on the tabs follow the filters.
 - The tabs, filters and page are part of the page's address, so a refresh, the back button or a shared link opens the very same view.
 - Each row shows the person, the location (with who entered it), an **Assigned to** column with the assigned people, the date and time, and the status.

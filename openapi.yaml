@@ -681,6 +681,16 @@ paths:
         and adds an entry to the end of `history` with the note and the person who made the change.
         Without `visitDate`, the current one stays.
 
+        **Emails.** When the status, the visit date or the end time changes, everyone assigned to
+        the form is emailed the update (the new status and the one before, the visit, the note, then
+        the whole form), except the person who made it. A note or the steps alone send no email.
+        `meta.email` says who was emailed and who wasn't.
+
+        **End time.** `visitEndDate` is when the visit ends: optional, later than the start, on the
+        same day in Dhaka (otherwise `400`, naming `visitEndDate`). Send `null` for no end time.
+        Left out, the end time stays while the visit keeps its start, and is cleared when
+        `visitDate` moves the visit.
+
         **Implementation steps.** Send `implementationSteps` to replace the whole checklist; leave it
         out to keep the current one. Send the `id` of each step that already exists. A step that
         becomes `done` gets today's date in `doneAt`; a step that was already done keeps its date.
@@ -1801,7 +1811,7 @@ components:
                 description: For an outside address. Optional; the address itself is shown when there is none.
     EmailReport:
       type: object
-      description: What happened to the assignment emails.
+      description: What happened to the emails (assigning, an edited form, a status update).
       required: [configured, sent, failed]
       properties:
         configured:
@@ -1809,12 +1819,12 @@ components:
           description: '`false` when the API has no SMTP settings, so no email is ever sent.'
         sent:
           type: array
-          description: Names of the newly assigned people who got the email.
+          description: Names of the people who got the email (empty when no email was due).
           items:
             type: string
         failed:
           type: array
-          description: The newly assigned people whose email could not be sent (they are still assigned), each with the reason in plain words. "Sent" only means the mail server took the email; the recipient's mail service decides later whether it reaches the inbox.
+          description: The people whose email could not be sent (the change is still saved), each with the reason in plain words. "Sent" only means the mail server took the email; the recipient's mail service decides later whether it reaches the inbox.
           items:
             type: object
             required: [name, reason]
@@ -2058,6 +2068,11 @@ components:
           $ref: '#/components/schemas/OnboardingStatus'
         visitDate:
           $ref: '#/components/schemas/DateTime'
+        visitEndDate:
+          description: When that visit ended, or `null` when no end time was given.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
         note:
           type: string
           description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, "Assigned to …" / "No longer assigned: …" when the assigned teammates changed, or the note given with a status change (empty when none was given).'
@@ -2141,7 +2156,12 @@ components:
           description: The chamber address (form field 7) or the pharmacy's address.
         visitDate:
           $ref: '#/components/schemas/DateTime'
-          description: When the marketer visits, or visited. This puts the record on the calendar.
+          description: When the marketer visits, or visited (the start). This puts the record on the calendar.
+        visitEndDate:
+          description: When the visit ends, later the same day, or `null` when no end time was given.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
         status:
           $ref: '#/components/schemas/OnboardingStatus'
         notes:
@@ -2338,7 +2358,15 @@ components:
         visitDate:
           type: string
           format: date-time
-          description: The visit date and time. ISO 8601 is best, for example `2026-10-21T11:00:00.000Z`.
+          description: The visit date and time (the start). ISO 8601 is best, for example `2026-10-21T11:00:00.000Z`.
+        visitEndDate:
+          description: |
+            Optional. When the visit ends: later than `visitDate`, on the same day in Dhaka
+            (otherwise `400`, naming `visitEndDate`). `null`, `""` or left out: no end time.
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
         status:
           $ref: '#/components/schemas/OnboardingStatus'
           default: demo
@@ -2367,6 +2395,14 @@ components:
         visitDate:
           $ref: '#/components/schemas/DateTime'
           description: Optional. A new visit date. Without it, the current one stays.
+        visitEndDate:
+          description: |
+            Optional. When the visit ends: later than the visit's start, on the same day in Dhaka.
+            `null` for no end time. Left out, the end time stays while the visit keeps its start,
+            and is cleared when `visitDate` moves the visit.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
         note:
           type: string
           maxLength: 500
@@ -2391,6 +2427,12 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Doctor'
+        meta:
+          type: object
+          description: After an edit, a status update or assigning, whether the emails went out.
+          properties:
+            email:
+              $ref: '#/components/schemas/EmailReport'
     DoctorListResponse:
       type: object
       required: [data, meta]
@@ -2407,6 +2449,12 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Pharmacy'
+        meta:
+          type: object
+          description: After an edit, a status update or assigning, whether the emails went out.
+          properties:
+            email:
+              $ref: '#/components/schemas/EmailReport'
     PharmacyListResponse:
       type: object
       required: [data, meta]
@@ -2422,7 +2470,7 @@ components:
     CalendarItem:
       type: object
       description: One visit on the calendar. A record with several visits has one item for each.
-      required: [id, key, type, name, place, address, status, current, now, steps, visitDate, phone, createdBy, assignedTo]
+      required: [id, key, type, name, place, address, status, current, now, steps, visitDate, visitEndDate, phone, createdBy, assignedTo]
       properties:
         id:
           description: The doctor's or pharmacy's id (the same on each of its visits).
@@ -2439,12 +2487,16 @@ components:
         now:
           type: object
           description: Where the record stands now, the same on each of its visits.
-          required: [status, visitDate]
+          required: [status, visitDate, visitEndDate]
           properties:
             status:
               $ref: '#/components/schemas/OnboardingStatus'
             visitDate:
               $ref: '#/components/schemas/DateTime'
+            visitEndDate:
+              anyOf:
+                - $ref: '#/components/schemas/DateTime'
+                - type: 'null'
         type:
           $ref: '#/components/schemas/RecordType'
         name:
@@ -2466,9 +2518,14 @@ components:
             - $ref: '#/components/schemas/StepProgress'
             - type: 'null'
         visitDate:
-          description: When this visit is (or was).
+          description: When this visit is (or was), its start.
           allOf:
             - $ref: '#/components/schemas/DateTime'
+        visitEndDate:
+          description: When this visit ends (or ended), or `null` when no end time was given.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
         phone:
           $ref: '#/components/schemas/Phone'
         createdBy:
@@ -3032,8 +3089,10 @@ components:
             now:
               status: ongoing
               visitDate: '2026-10-21T05:00:00.000Z'
+              visitEndDate: '2026-10-21T06:30:00.000Z'
             steps: null
             visitDate: '2026-10-19T05:00:00.000Z'
+            visitEndDate: '2026-10-19T06:00:00.000Z'
             phone: '+8801811223344'
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
@@ -3050,8 +3109,10 @@ components:
             now:
               status: ongoing
               visitDate: '2026-10-21T05:00:00.000Z'
+              visitEndDate: '2026-10-21T06:30:00.000Z'
             steps: null
             visitDate: '2026-10-21T05:00:00.000Z'
+            visitEndDate: '2026-10-21T06:30:00.000Z'
             phone: '+8801811223344'
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'
@@ -3068,10 +3129,12 @@ components:
             now:
               status: implementation
               visitDate: '2026-10-21T11:00:00.000Z'
+              visitEndDate: null
             steps:
               done: 1
               total: 2
             visitDate: '2026-10-21T11:00:00.000Z'
+            visitEndDate: null
             phone: '+8801711234567'
             createdBy:
               id: '6717a3f9c2b1e45d8a0f1a02'

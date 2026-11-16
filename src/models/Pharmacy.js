@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 
 import { DAYS, PHARMACY_TYPES, optionalEmail, optionalPhone, optionalText, optionalTime } from '../utils.js';
-import { recordOptions, trackingFields, trackingInput } from './shared.js';
+import { checkVisitEnd, recordOptions, trackingFields, trackingInput } from './shared.js';
 
 const PAYMENT_METHODS = ['cash', 'bkash', 'nagad', 'card'];
 
@@ -54,4 +54,4 @@ export const pharmacyInput = z.object({
   homeDelivery: z.preprocess((value) => (value === '' || value === undefined ? null : value), z.boolean().nullable()),
   paymentMethods: z.array(z.enum(PAYMENT_METHODS)).default([]),
   ...trackingInput,
-});
+}).superRefine(checkVisitEnd); // the end time, when given, is later than the start

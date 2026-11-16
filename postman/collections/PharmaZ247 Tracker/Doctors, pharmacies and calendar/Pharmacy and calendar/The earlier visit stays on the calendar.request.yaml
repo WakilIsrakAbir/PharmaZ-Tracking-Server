@@ -32,10 +32,18 @@ scripts:
         pm.expect(ongoing.status).to.eql('ongoing');
         pm.expect(ongoing.visitDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitDate'));
       });
+      pm.test('each visit keeps its own end time', () => {
+        pm.expect(demo.visitEndDate).to.eql(null);
+        pm.expect(ongoing.visitEndDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitEndDate'));
+      });
       pm.test('only the new visit is the current one, and both say where the pharmacy stands now', () => {
         pm.expect(demo.current).to.eql(false);
         pm.expect(ongoing.current).to.eql(true);
-        const now = { status: 'ongoing', visitDate: pm.collectionVariables.get('pharmacyNextVisitDate') };
+        const now = {
+          status: 'ongoing',
+          visitDate: pm.collectionVariables.get('pharmacyNextVisitDate'),
+          visitEndDate: pm.collectionVariables.get('pharmacyNextVisitEndDate'),
+        };
         pm.expect(demo.now).to.eql(now);
         pm.expect(ongoing.now).to.eql(now);
         pm.expect(demo.steps).to.eql(null);

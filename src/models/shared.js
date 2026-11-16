@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-import { STATUSES, STATUS_MESSAGE, dhakaDay, optionalText } from '../utils.js';
+import { STATUSES, STATUS_MESSAGE, dhakaDay, optionalText, visitEndProblem } from '../utils.js';
 
 // What every onboarding record has, doctor or pharmacy: the visit date and status that the
 // marketing person sets on the form, notes, who submitted it, who is assigned to it,
@@ -22,6 +22,7 @@ const historyEntrySchema = new mongoose.Schema(
   {
     status: { type: String, enum: STATUSES, required: true },
     visitDate: { type: Date, required: true, index: true },   // the calendar also shows the earlier visits (see visitEvents)
+    visitEndDate: { type: Date, default: null },              // when that visit ended, if it was given
     note: { type: String, default: '' },
     // How many implementation steps were done at that moment, e.g. { done: 2, total: 4 }.
     steps: { type: new mongoose.Schema({ done: Number, total: Number }, { _id: false }), default: null },
@@ -43,7 +44,8 @@ const assigneeSchema = new mongoose.Schema(
 );
 
 export const trackingFields = {
-  visitDate: { type: Date, required: true, index: true },        // when the visit happens
+  visitDate: { type: Date, required: true, index: true },        // when the visit happens (it starts)
+  visitEndDate: { type: Date, default: null },                   // when it ends: optional, later the same day
   status: { type: String, enum: STATUSES, default: 'demo', index: true },
   notes: { type: String, default: '' },
   implementationSteps: { type: [stepSchema], default: [] },
@@ -79,12 +81,25 @@ export function assigneeJson({ email, name, user }) {
   return { id: null, name: name || email, email, phone: null, teammate: false };
 }
 
-// The tracking part of each form, checked with zod.
+// An optional moment: "", null or missing becomes null.
+export const optionalMoment = (message) =>
+  z.preprocess((value) => (value === '' || value === undefined ? null : value), z.coerce.date({ error: message }).nullable());
+
+// The tracking part of each form, checked with zod. The forms also check the end time against the
+// start (see checkVisitEnd).
 export const trackingInput = {
   visitDate: z.coerce.date({ error: 'Please pick the visit date and time.' }),
+  visitEndDate: optionalMoment('Please pick a valid end time.'),
   status: z.enum(STATUSES, { error: STATUS_MESSAGE }).default('demo'), // a new onboarding starts with the demo visit
   notes: optionalText(1000),
 };
+
+// For a whole form (doctorInput.superRefine(checkVisitEnd)): the end time, when given, is later than
+// the start, on the same day.
+export function checkVisitEnd({ visitDate, visitEndDate }, ctx) {
+  const problem = visitEndProblem(visitDate, visitEndDate);
+  if (problem) ctx.addIssue({ code: 'custom', path: ['visitEndDate'], message: problem });
+}
 
 // Who may see a record: admins see every form; marketing people the forms they submitted or were
 // assigned to. It's a MongoDB filter, used like this: Doctor.find({ ...visibleTo(req.user), status: 'setup' })
@@ -99,7 +114,7 @@ export function allOf(...filters) {
 }
 
 // The visits a record shows on the calendar, oldest first, read from its history: one per stage of
-// the onboarding, as [{ status, visitDate, current }].
+// the onboarding, as [{ status, visitDate, visitEndDate, current }].
 //   • a new status on another day adds a visit there; the earlier one stays on its day
 //   • a new day with the same status moves the visit (it was rescheduled)
 //   • a new status on the same day changes that day's visit
@@ -107,10 +122,10 @@ export function allOf(...filters) {
 // At most one visit a day (the later one wins). The last visit is where the record stands now
 // (`current`); the record's own status and visit date have the final say, which also covers a record
 // without a history.
-export function visitEvents({ status, visitDate, history = [] }) {
+export function visitEvents({ status, visitDate, visitEndDate = null, history = [] }) {
   const visits = [];
-  for (const entry of [...history, { status, visitDate }]) {
-    const visit = { status: entry.status, visitDate: entry.visitDate };
+  for (const entry of [...history, { status, visitDate, visitEndDate }]) {
+    const visit = { status: entry.status, visitDate: entry.visitDate, visitEndDate: entry.visitEndDate ?? null };
     const last = visits.at(-1);
     const sameStage = last && (last.status === visit.status || dhakaDay(last.visitDate) === dhakaDay(visit.visitDate));
     if (sameStage) Object.assign(last, visit);

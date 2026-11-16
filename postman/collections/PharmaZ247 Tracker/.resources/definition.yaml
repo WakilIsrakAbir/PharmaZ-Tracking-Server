@@ -75,6 +75,18 @@ variables:
   - key: pharmacyNextVisitDate
     value: ''
     description: The day after pharmacyVisitDate, set before "Move the pharmacy to Ongoing on a later day".
+  - key: pharmacyNextVisitEndDate
+    value: ''
+    description: An hour and a half after pharmacyNextVisitDate, the end time of that visit.
+  - key: doctorVisitEndDate
+    value: ''
+    description: An hour after doctorVisitDate, set before "A status update emails everyone assigned".
+  - key: overnightEndDate
+    value: ''
+    description: A day after pharmacyVisitDate, for an end time on another day (refused).
+  - key: earlyEndDate
+    value: ''
+    description: Half an hour before pharmacyNextVisitDate, for an end time before the start (refused).
   - key: pharmacyMovedVisitDate
     value: ''
     description: The day after pharmacyNextVisitDate, set before "Reschedule the pharmacy visit".

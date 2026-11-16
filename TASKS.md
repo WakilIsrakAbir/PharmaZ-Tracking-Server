@@ -35,6 +35,14 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Phones: dots on the calendar, details below it
 - [x] **Earlier visits stay on the calendar** (16 Nov 2026): a new status on another day adds a visit and the earlier one stays on its day, faded; the same status on a new day moves it (rescheduled); read from the history, so older onboardings show their earlier visits too. The day list says where a faded visit stands now. "N onboardings" and the year overview count an onboarding once a month
 - [x] Calendar chips show the doctor's or pharmacy's name instead of the time (the time is in the tooltip and the day list)
+- [x] **Start and end time** (16 Nov 2026): every visit has a start time and an optional end time, later the same day (the API checks it); shown as "10:00 – 11:30 AM · 1 hr 30 min" in the day list, details, history, lists and emails
+- [x] A time picker instead of the browser's clock: times every 15 minutes, the end time lists only later times with the length of the visit, "No end time"; also for opening hours
+- [x] **Lists fit the screen** (16 Nov 2026): doctors, pharmacies, call log and team show as many rows as fit (measured, again on resize), so the page needs no scrolling; "Auto (N)" under Per page, or 10 / 20 / 50
+- [x] **Search by name, word by word**: every word must match, in any order (API), typing waits 300 ms before asking, "N found" and ✕ in the box, the words marked in the names
+- [x] **New sign-in page design**: a medium-sized, clean page that fits any laptop without scrolling: the navy brand panel (headline, one line, a glimpse of the day list), the form in a card with icons in the boxes; on phones a navy band with the logo and the card rising out of it
+- [x] **Fixed list headers** on large screens: the page is the screen's height, the title, tabs, search, filters and column titles stay put and only the rows scroll inside the card
+- [x] **Status updates are emailed** (16 Nov 2026): a new status or visit time from Save update goes to everyone assigned (not the person who made it), with the status before and after, the visit's start and end, and the note; the app says who was emailed
+- [x] The day list says **Latest** or **Updated later** beside each status (an earlier visit shows where it stands now), and an earlier visit's details start with a note and **Go to the latest visit**
 
 ### Lists
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form

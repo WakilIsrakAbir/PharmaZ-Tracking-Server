@@ -11,29 +11,34 @@ body:
     {
       "status": "ongoing",
       "visitDate": "{{pharmacyNextVisitDate}}",
+      "visitEndDate": "{{pharmacyNextVisitEndDate}}",
       "note": "Demo done. Next visit to start the setup."
     }
 scripts:
   - type: beforeRequest
     language: text/javascript
     code: |-
-      // The day after the demo visit, at the same time (05:00 UTC, 11:00 AM in Dhaka).
+      // The day after the demo visit, at the same time (05:00 UTC, 11:00 AM in Dhaka), for an hour and a half.
       const next = new Date(pm.collectionVariables.get('pharmacyVisitDate'));
       next.setUTCDate(next.getUTCDate() + 1);
       pm.collectionVariables.set('pharmacyNextVisitDate', next.toISOString());
+      pm.collectionVariables.set('pharmacyNextVisitEndDate', new Date(next.getTime() + 90 * 60 * 1000).toISOString());
   - type: afterResponse
     language: text/javascript
     code: |-
       pm.test('200 OK', () => pm.response.to.have.status(200));
       const pharmacy = pm.response.json().data || {};
-      pm.test('the pharmacy is now in Ongoing, on the later day', () => {
+      pm.test('the pharmacy is now in Ongoing, on the later day, with its end time', () => {
         pm.expect(pharmacy.status).to.eql('ongoing');
         pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitDate'));
+        pm.expect(pharmacy.visitEndDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitEndDate'));
       });
-      pm.test('the history keeps the demo visit and adds the new one', () => {
+      pm.test('the history keeps the demo visit (no end time) and adds the new one with its end time', () => {
         const history = pharmacy.history || [];
         pm.expect(history).to.have.lengthOf(2);
         pm.expect(history[0].status).to.eql('demo');
         pm.expect(history[0].visitDate).to.eql(pm.collectionVariables.get('pharmacyVisitDate'));
+        pm.expect(history[0].visitEndDate).to.eql(null);
         pm.expect(history[1].status).to.eql('ongoing');
+        pm.expect(history[1].visitEndDate).to.eql(pm.collectionVariables.get('pharmacyNextVisitEndDate'));
       });

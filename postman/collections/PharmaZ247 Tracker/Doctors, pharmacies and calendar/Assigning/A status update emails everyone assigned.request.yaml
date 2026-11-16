@@ -1,0 +1,34 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 3100
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitEndDate": "{{doctorVisitEndDate}}",
+      "note": "The visit will take an hour."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // An hour after the doctor's visit starts: a new end time, so the people assigned are emailed.
+      const start = Date.parse(pm.collectionVariables.get('doctorVisitDate'));
+      pm.collectionVariables.set('doctorVisitEndDate', new Date(start + 60 * 60 * 1000).toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: doctor = {}, meta = {} } = pm.response.json();
+      pm.test('saves the end time and keeps the start', () => {
+        pm.expect(doctor.visitDate).to.eql(pm.collectionVariables.get('doctorVisitDate'));
+        pm.expect(doctor.visitEndDate).to.eql(pm.collectionVariables.get('doctorVisitEndDate'));
+      });
+      pm.test('reports the emails to the people assigned (none go out: SMTP is not set up in the tests)', () => {
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

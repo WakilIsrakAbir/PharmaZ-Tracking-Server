@@ -30,6 +30,14 @@ export const dhakaDay = (date = new Date()) => dhakaDate.format(date);
 export const startOfDhakaDay = (day) => new Date(`${day}T00:00:00+06:00`);
 export const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 
+// A visit can say when it ends (optional): later than its start, on the same day in Dhaka.
+// What is wrong with an end time, or null when it is fine (or not given).
+export function visitEndProblem(start, end) {
+  if (!end) return null;
+  if (end <= start || dhakaDay(end) !== dhakaDay(start)) return 'The end time must be later than the start time, on the same day.';
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Passwords
 // ---------------------------------------------------------------------------
@@ -193,15 +201,21 @@ export const dayField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a day like 
 // ---------------------------------------------------------------------------
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// A MongoDB filter that finds `search` in any of the text fields, or a phone number by its digits
-// ("01711" finds +8801711…). Case doesn't matter. An empty search matches everything.
+// A MongoDB filter that finds `search` in the text fields word by word: every word must be in one of
+// the fields, in any order ("ahmed tanvir" and "md mashiur" find "Dr. Tanvir Ahmed" and "Dr. Md. Mashiur
+// Rahman"). A phone number is found by its digits ("01711" finds +8801711…). Case doesn't matter.
+// An empty search matches everything.
 export function searchFilter(search, fields) {
-  if (!search) return {};
-  const pattern = new RegExp(escapeRegex(search), 'i');
-  const or = fields.map((field) => ({ [field]: pattern }));
+  const words = (search ?? '').split(/\s+/).filter(Boolean).slice(0, 8);
+  if (words.length === 0) return {};
+  const eachWord = words.map((word) => {
+    const pattern = new RegExp(escapeRegex(word), 'i');
+    return { $or: fields.map((field) => ({ [field]: pattern })) };
+  });
+  const byText = eachWord.length === 1 ? eachWord[0] : { $and: eachWord };
   const digits = search.replace(/\D/g, '').replace(/^0/, '');
-  if (digits.length >= 3) or.push({ phone: new RegExp(digits) });
-  return { $or: or };
+  if (digits.length < 3) return byText;
+  return { $or: [byText, { phone: new RegExp(digits) }] };
 }
 
 // A MongoDB filter for a date field between two Dhaka days, both included (either may be left out):

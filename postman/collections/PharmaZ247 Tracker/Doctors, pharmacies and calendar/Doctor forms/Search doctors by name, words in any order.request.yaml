@@ -1,0 +1,23 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/doctors?search=ahmed%20tanvir'
+order: 9100
+queryParams:
+  - key: search
+    value: ahmed%20tanvir
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data = [] } = pm.response.json();
+      pm.test('finds "Dr. Tanvir Ahmed" with the words the other way round, in small letters', () => {
+        pm.expect(data.map((doctor) => doctor.id)).to.include(pm.collectionVariables.get('doctorId'));
+      });
+      pm.test('every word must match: only doctors with both words', () => {
+        data.forEach((doctor) => {
+          const text = [doctor.name, doctor.bmdcRegNo, doctor.chamberName, doctor.address, doctor.email].join(' ').toLowerCase();
+          pm.expect(text).to.include('ahmed');
+          pm.expect(text).to.include('tanvir');
+        });
+      });

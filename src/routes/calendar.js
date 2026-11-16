@@ -24,7 +24,7 @@ const rangeQuery = z
   .refine(({ from, to }) => to > from, { path: ['to'], error: 'The end date must be after the start date.' })
   .refine(({ from, to }) => to - from <= 62 * DAY, { path: ['to'], error: 'Ask for at most 62 days at a time.' });
 
-const FIELDS = 'name address status implementationSteps visitDate history.status history.visitDate phone createdBy assignedTo';
+const FIELDS = 'name address status implementationSteps visitDate visitEndDate history.status history.visitDate history.visitEndDate phone createdBy assignedTo';
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
   { path: 'assignedTo.user', select: 'name phone' },
@@ -91,7 +91,7 @@ router.get('/', validate({ query: rangeQuery }), async (req, res) => {
 // Just what a calendar chip and the day list need, for each of the record's visits in the range.
 function calendarItems(type, record, place, from, to) {
   const id = String(record._id);
-  return visitsBetween(record, from, to).map(({ status, visitDate, current }) => ({
+  return visitsBetween(record, from, to).map(({ status, visitDate, visitEndDate, current }) => ({
     id,
     key: `${id}:${dhakaDay(visitDate)}`,
     type,
@@ -100,9 +100,10 @@ function calendarItems(type, record, place, from, to) {
     address: record.address,
     status,
     current,
-    now: { status: record.status, visitDate: record.visitDate },
+    now: { status: record.status, visitDate: record.visitDate, visitEndDate: record.visitEndDate ?? null },
     steps: current ? countSteps(record.implementationSteps) : null,
     visitDate,
+    visitEndDate,
     phone: record.phone,
     createdBy: userRef(record.createdBy),
     assignedTo: (record.assignedTo ?? []).map(assigneeJson).map(({ id, name }) => ({ id, name })),

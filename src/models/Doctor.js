@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 
 import { DAYS, optionalEmail, optionalPhone, optionalTaka, optionalText, optionalTime } from '../utils.js';
-import { recordOptions, trackingFields, trackingInput } from './shared.js';
+import { checkVisitEnd, recordOptions, trackingFields, trackingInput } from './shared.js';
 
 const CONSULTATION_TYPES = ['in_person', 'teleconsultation'];
 const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60];   // minutes
@@ -58,4 +58,4 @@ export const doctorInput = z.object({
     .object({ firstVisit: optionalTaka, reportView: optionalTaka, secondVisit: optionalTaka, afterOneMonth: optionalTaka })
     .default({ firstVisit: null, reportView: null, secondVisit: null, afterOneMonth: null }),
   ...trackingInput,
-});
+}).superRefine(checkVisitEnd); // the end time, when given, is later than the start
