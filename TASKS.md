@@ -42,7 +42,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] **New sign-in page design**: a medium-sized, clean page that fits any laptop without scrolling: the navy brand panel (headline, one line, a glimpse of the day list), the form in a card with icons in the boxes; on phones a navy band with the logo and the card rising out of it
 - [x] **Fixed list headers** on large screens: the page is the screen's height, the title, tabs, search, filters and column titles stay put and only the rows scroll inside the card
 - [x] **Status updates are emailed** (16 Nov 2026): a new status or visit time from Save update goes to everyone assigned (not the person who made it), with the status before and after, the visit's start and end, and the note; the app says who was emailed
-- [x] The day list says **Latest** or **Updated later** beside each status (an earlier visit shows where it stands now), and an earlier visit's details start with a note and **Go to the latest visit**
+- [x] Day list cards in the calendar's look (status-colored bar, time, name, status and people); an earlier visit says where it stands now ("↳ Now ● Ongoing · Tue 10 Nov"), and an earlier visit's details start with a note and **Go to the latest visit**
 
 ### Lists
 - [x] Doctors and Pharmacies: status tabs with counts, search, a full page for each form
