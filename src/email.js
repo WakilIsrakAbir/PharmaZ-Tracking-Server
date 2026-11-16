@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 
 import { env } from './config.js';
+import { dhakaDay } from './utils.js';
 
 // Email, over SMTP (Gmail, Google Workspace, Brevo…: the SMTP_* settings in .env decide which).
 // Three kinds, all carrying the whole form:
@@ -19,7 +20,6 @@ const STATUS_LABELS = {
   support: 'Support',
 };
 const TYPE_LABELS = { doctor: 'Doctor', pharmacy: 'Pharmacy' };
-const TYPE_PATHS = { doctor: '/doctors', pharmacy: '/pharmacies' };
 
 let transport = null;
 function mailer() {
@@ -80,7 +80,7 @@ function reasonFor(error) {
 function recordEmail({ record, type, person, by, reason, change = {} }) {
   const kind = TYPE_LABELS[type];
   const visit = formatVisit(record.visitDate, record.visitEndDate);
-  const link = `${env.appUrl}${TYPE_PATHS[type]}/${record._id}`;
+  const link = trackerLink(record, type);
   const displayName = record.name || `Unnamed ${kind}`;
   const status = STATUS_LABELS[record.status] ?? record.status;
   const steps = record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n');
@@ -134,6 +134,15 @@ function statusUpdate({ record, type, kind, displayName, status, visit, steps, b
       ['Submitted by', personLine(record.createdBy)],
     ],
   };
+}
+
+// "Open in the tracker": the dashboard on the visit's day, with this doctor's or pharmacy's details
+// open (like dashboardLink in the web app), at APP_URL, the web app's public address. Someone who
+// isn't signed in is asked to sign in first, and then lands right there.
+function trackerLink(record, type) {
+  const day = dhakaDay(record.visitDate);
+  const query = new URLSearchParams({ month: day.slice(0, 7), day, type, id: String(record._id) });
+  return `${env.appUrl}/?${query}`;
 }
 
 // Leaves out the empty fields.

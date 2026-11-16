@@ -43,11 +43,20 @@ if (!result.success) {
 export const env = {
   ...result.data,
   isProduction: result.data.NODE_ENV === 'production',
-  // Where the web app lives, for links in emails. Usually the same as CLIENT_ORIGIN.
-  appUrl: result.data.APP_URL ?? result.data.CLIENT_ORIGIN,
+  // Where the web app lives, for the "Open in the tracker" link in emails (no "/" at the end).
+  // The people emailed open it on their own devices, so it must be the public address.
+  appUrl: (result.data.APP_URL ?? result.data.CLIENT_ORIGIN).replace(/\/+$/, ''),
   // Email is on only when every SMTP setting is there.
   emailEnabled: Boolean(result.data.SMTP_HOST && result.data.SMTP_USER && result.data.SMTP_PASS && result.data.EMAIL_FROM),
 };
+
+// Emails that link to this computer don't open for anyone else.
+if (env.emailEnabled && /\/\/(localhost|127\.0\.0\.1)\b/.test(env.appUrl)) {
+  console.warn(
+    `⚠ The links in emails go to ${env.appUrl}, which only opens on this computer. ` +
+      'Set APP_URL in server/.env to the web app\'s public address, e.g. https://pharma-z-tracking-client.vercel.app',
+  );
+}
 
 let cached = global.mongoose;
 if (!cached) {
