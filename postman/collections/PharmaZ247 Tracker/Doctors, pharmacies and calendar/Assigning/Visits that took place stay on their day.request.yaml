@@ -1,0 +1,46 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{pastFrom}}&to={{pastTo}}'
+order: 3850
+queryParams:
+  - key: from
+    value: '{{pastFrom}}'
+  - key: to
+    value: '{{pastTo}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // From yesterday at 00:00 UTC, for nine days.
+      const from = new Date();
+      from.setUTCDate(from.getUTCDate() - 1);
+      from.setUTCHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 9);
+      pm.collectionVariables.set('pastFrom', from.toISOString());
+      pm.collectionVariables.set('pastTo', to.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const items = pm.response.json().data || [];
+      const visitsOf = (id) => items.filter((item) => item.id === id);
+      pm.test('same status, next visit set after the visit took place: the visit stays on its day', () => {
+        const visits = visitsOf(pm.collectionVariables.get('pastPharmacyId'));
+        pm.expect(visits.map((visit) => [visit.visitDate, visit.current])).to.eql([
+          [pm.collectionVariables.get('pastVisitDate'), false],
+          [pm.collectionVariables.get('pastNextVisitDate'), true],
+        ]);
+      });
+      pm.test('same status, moved before it was due but a step was done there: the visit stays', () => {
+        const visits = visitsOf(pm.collectionVariables.get('stepsPharmacyId'));
+        pm.expect(visits.map((visit) => [visit.visitDate, visit.current])).to.eql([
+          [pm.collectionVariables.get('stepsVisitDate'), false],
+          [pm.collectionVariables.get('stepsNextVisitDate'), true],
+        ]);
+      });
+      pm.test('the earlier visit shows how far the steps were at it', () => {
+        const [earlier = {}] = visitsOf(pm.collectionVariables.get('stepsPharmacyId'));
+        pm.expect(earlier.status).to.eql('implementation');
+        pm.expect(earlier.steps).to.eql({ done: 1, total: 2 });
+      });

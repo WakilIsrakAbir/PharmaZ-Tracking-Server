@@ -113,23 +113,42 @@ export function allOf(...filters) {
   return { $and: parts };
 }
 
-// The visits a record shows on the calendar, oldest first, read from its history: one per stage of
-// the onboarding, as [{ status, visitDate, visitEndDate, current }].
-//   • a new status on another day adds a visit there; the earlier one stays on its day
-//   • a new day with the same status moves the visit (it was rescheduled)
-//   • a new status on the same day changes that day's visit
-//   • notes, steps and assigning repeat the status and day, so they change nothing
-// At most one visit a day (the later one wins). The last visit is where the record stands now
-// (`current`); the record's own status and visit date have the final say, which also covers a record
-// without a history.
+// The visits a record shows on the calendar, oldest first, read from its history, as
+// [{ status, visitDate, visitEndDate, steps, current }]. When an update puts the visit on another day:
+//   • with a new status, the earlier visit stays on its day (a new stage of the onboarding)
+//   • with the same status, the earlier visit also stays when it took place: its time had come when
+//     the day was changed (the next visit was set after it), or implementation steps were ticked off
+//     at it; otherwise it moves to the new day (it was rescheduled before it was due)
+// An update on the same day changes that day's visit (its status, time and progress); notes and
+// assigning repeat the status and day, so they change nothing. `steps` is how far the implementation
+// steps were at that visit ({ done, total }, or null). At most one visit a day (the later one wins).
+// The last visit is where the record stands now (`current`); the record's own status and visit date
+// have the final say, which also covers a record without a history.
 export function visitEvents({ status, visitDate, visitEndDate = null, history = [] }) {
   const visits = [];
+  let doneSoFar = 0; // implementation steps done, as the history goes
   for (const entry of [...history, { status, visitDate, visitEndDate }]) {
-    const visit = { status: entry.status, visitDate: entry.visitDate, visitEndDate: entry.visitEndDate ?? null };
+    const visit = { status: entry.status, visitDate: entry.visitDate, visitEndDate: entry.visitEndDate ?? null, steps: entry.steps ?? null, worked: false };
+    const progressed = Boolean(entry.steps) && entry.steps.done > doneSoFar; // steps were ticked off in this update
+    if (entry.steps) doneSoFar = entry.steps.done;
     const last = visits.at(-1);
-    const sameStage = last && (last.status === visit.status || dhakaDay(last.visitDate) === dhakaDay(visit.visitDate));
-    if (sameStage) Object.assign(last, visit);
-    else visits.push(visit);
+    if (!last) {
+      visits.push({ ...visit, worked: progressed });
+      continue;
+    }
+
+    // The steps ticked off in this update were done at the visit that was current until now (an
+    // update after a visit ticks what was done there, and may set the next visit's day).
+    if (progressed) last.worked = true;
+    if (entry.steps) last.steps = entry.steps;
+
+    if (dhakaDay(last.visitDate) === dhakaDay(visit.visitDate)) {
+      Object.assign(last, { status: visit.status, visitDate: visit.visitDate, visitEndDate: visit.visitEndDate });
+      continue;
+    }
+    const tookPlace = Boolean(entry.at) && last.visitDate <= new Date(entry.at); // its time had come
+    if (last.status !== visit.status || tookPlace || last.worked) visits.push({ ...visit, steps: visit.steps ?? last.steps });
+    else Object.assign(last, { visitDate: visit.visitDate, visitEndDate: visit.visitEndDate }); // rescheduled
   }
 
   const byDay = new Map(); // in the order they happened, so the current visit stays last
@@ -138,7 +157,7 @@ export function visitEvents({ status, visitDate, visitEndDate = null, history = 
     byDay.delete(day);
     byDay.set(day, visit);
   }
-  return [...byDay.values()].map((visit, index, all) => ({ ...visit, current: index === all.length - 1 }));
+  return [...byDay.values()].map(({ worked, ...visit }, index, all) => ({ ...visit, current: index === all.length - 1 }));
 }
 
 // { done: 2, total: 4 }, or null when there are no steps.

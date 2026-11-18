@@ -78,6 +78,30 @@ variables:
   - key: pharmacyNextVisitEndDate
     value: ''
     description: An hour and a half after pharmacyNextVisitDate, the end time of that visit.
+  - key: pastVisitDate
+    value: ''
+    description: Yesterday at 05:00 UTC, a visit an admin enters after it took place (Assigning).
+  - key: pastPharmacyId
+    value: ''
+    description: Set by "A visit that took place yesterday".
+  - key: pastNextVisitDate
+    value: ''
+    description: Two days from now, the next visit after pastVisitDate.
+  - key: stepsVisitDate
+    value: ''
+    description: Three days from now, set before "A visit still to come".
+  - key: stepsPharmacyId
+    value: ''
+    description: Set by "A visit still to come".
+  - key: stepsNextVisitDate
+    value: ''
+    description: Two days after stepsVisitDate, set before "Move the visit where a step was done".
+  - key: pastFrom
+    value: ''
+    description: Yesterday at 00:00 UTC, for "Visits that took place stay on their day".
+  - key: pastTo
+    value: ''
+    description: Nine days after pastFrom.
   - key: doctorVisitEndDate
     value: ''
     description: An hour after doctorVisitDate, set before "A status update emails everyone assigned".

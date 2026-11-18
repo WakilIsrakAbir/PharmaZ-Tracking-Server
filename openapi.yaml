@@ -995,9 +995,11 @@ paths:
         onboarding.
         - A status update with a **new status on another day** adds a visit on that day; the earlier
           visit stays on its own day, with the status it had then.
-        - A **new day with the same status** moves the visit (it was rescheduled).
+        - A **new day with the same status** keeps the earlier visit when it took place: its time
+          had come when the day was changed (the next visit was set after it), or implementation
+          steps were ticked off at it. Otherwise the visit moves (it was rescheduled before it was due).
         - A **new status on the same day** changes that day's visit to the new status.
-        - Notes, implementation steps and assigning people add no visit.
+        - Notes, implementation steps and assigning people on the same day add no visit.
 
         A record has at most one visit a day. Its last visit is where it stands now (`current: true`,
         the record's own `status` and `visitDate`); `now` is the same on every visit of the record.
@@ -2512,8 +2514,8 @@ components:
             - $ref: '#/components/schemas/OnboardingStatus'
         steps:
           description: |
-            How many implementation steps are done, on the current visit only: `null` on an earlier
-            visit, or when the record has no steps.
+            How many implementation steps are done: now, on the current visit; on an earlier visit,
+            how far they were at that visit. `null` when there are no steps.
           anyOf:
             - $ref: '#/components/schemas/StepProgress'
             - type: 'null'

@@ -1,0 +1,30 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 3820
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Steps Pharmacy",
+      "status": "implementation",
+      "visitDate": "{{stepsVisitDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Three days from now: a visit that hasn't taken place yet.
+      const day = new Date();
+      day.setUTCDate(day.getUTCDate() + 3);
+      day.setUTCHours(5, 0, 0, 0);
+      pm.collectionVariables.set('stepsVisitDate', day.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const pharmacy = pm.response.json().data || {};
+      if (pharmacy.id) pm.collectionVariables.set('stepsPharmacyId', pharmacy.id);

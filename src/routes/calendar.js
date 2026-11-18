@@ -24,7 +24,9 @@ const rangeQuery = z
   .refine(({ from, to }) => to > from, { path: ['to'], error: 'The end date must be after the start date.' })
   .refine(({ from, to }) => to - from <= 62 * DAY, { path: ['to'], error: 'Ask for at most 62 days at a time.' });
 
-const FIELDS = 'name address status implementationSteps visitDate visitEndDate history.status history.visitDate history.visitEndDate phone createdBy assignedTo';
+// The history's status, day, time of the change (at) and steps decide the visits (see visitEvents).
+const HISTORY = 'history.status history.visitDate history.visitEndDate history.at history.steps';
+const FIELDS = `name address status implementationSteps visitDate visitEndDate ${HISTORY} phone createdBy assignedTo`;
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
   { path: 'assignedTo.user', select: 'name phone' },
@@ -53,7 +55,7 @@ router.get('/months', validate({ query: monthsQuery }), async (req, res) => {
 
   // { "2026-10": 3, … } for one model, by the month in Dhaka time.
   async function countByMonth(Model) {
-    const records = await Model.find(withVisitsBetween(req.user, start, end)).select('status visitDate history.status history.visitDate').lean();
+    const records = await Model.find(withVisitsBetween(req.user, start, end)).select(`status visitDate visitEndDate ${HISTORY}`).lean();
     const counts = {};
     for (const record of records) {
       const months = new Set(visitsBetween(record, start, end).map(({ visitDate }) => dhakaDay(visitDate).slice(0, 7)));
@@ -91,7 +93,7 @@ router.get('/', validate({ query: rangeQuery }), async (req, res) => {
 // Just what a calendar chip and the day list need, for each of the record's visits in the range.
 function calendarItems(type, record, place, from, to) {
   const id = String(record._id);
-  return visitsBetween(record, from, to).map(({ status, visitDate, visitEndDate, current }) => ({
+  return visitsBetween(record, from, to).map(({ status, visitDate, visitEndDate, steps, current }) => ({
     id,
     key: `${id}:${dhakaDay(visitDate)}`,
     type,
@@ -101,7 +103,7 @@ function calendarItems(type, record, place, from, to) {
     status,
     current,
     now: { status: record.status, visitDate: record.visitDate, visitEndDate: record.visitEndDate ?? null },
-    steps: current ? countSteps(record.implementationSteps) : null,
+    steps: current ? countSteps(record.implementationSteps) : steps, // an earlier visit: how far the steps were then
     visitDate,
     visitEndDate,
     phone: record.phone,

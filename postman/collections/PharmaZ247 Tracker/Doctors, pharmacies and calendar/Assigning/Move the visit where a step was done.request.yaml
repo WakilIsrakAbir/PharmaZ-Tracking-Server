@@ -1,0 +1,27 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{stepsPharmacyId}}/status'
+order: 3840
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitDate": "{{stepsNextVisitDate}}",
+      "note": "Next visit to train the staff."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Two days after that visit, same status.
+      const next = new Date(pm.collectionVariables.get('stepsVisitDate'));
+      next.setUTCDate(next.getUTCDate() + 2);
+      pm.collectionVariables.set('stepsNextVisitDate', next.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
