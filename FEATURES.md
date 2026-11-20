@@ -85,17 +85,18 @@ Opens beside the calendar, or as a full page from the Doctors / Pharmacies lists
 
 ---
 
-## 6. The five statuses
+## 6. The six statuses
 
-Every onboarding is in exactly one status. The colour follows it everywhere.
+Every onboarding is in exactly one status. The colour follows it everywhere. The six colours are spread around the colour wheel so no two look alike (20 Nov 2026).
 
 | Status | Colour | Meaning |
 |---|---|---|
-| **Demo** | Teal | The first visit: showing PharmaZ247. Every new form starts here |
+| **Account Creation** | Grey | The account is created in PharmaZ247 |
+| **Demo** | Purple | The first visit: showing PharmaZ247. Every new form starts here |
 | **Ongoing** | Blue | Talks have started; the form is being filled in |
 | **Setup** | Amber | Profile, slots and fees are being set up in PharmaZ247 |
 | **Implementation** | Green | Going live: training, first bookings, tracked step by step |
-| **Support** | Violet | Live; the team now visits to support them |
+| **Support** | Brown | Live; the team now visits to support them |
 
 Every status change is written to the onboarding's history, with who made it and when.
 

@@ -59,11 +59,14 @@ To add or change a field, edit three places: the model in this repo (`src/models
 
 | Status | Meaning | Color |
 |---|---|---|
-| **Demo** | The first visit, showing PharmaZ247 | Teal |
+| **Account Creation** | The account is created in PharmaZ247 | Grey |
+| **Demo** | The first visit, showing PharmaZ247 | Purple |
 | **Ongoing** | Talks have started | Blue |
 | **Setup** | Profile and slots being set up | Amber |
 | **Implementation** | Going live in PharmaZ247 | Green |
-| **Support** | Live; the team now visits to support them | Violet |
+| **Support** | Live; the team now visits to support them | Brown |
+
+The colors are the `--status-*` values in the web app's `src/app/globals.css`, spread around the color wheel so no two look alike.
 
 Every status change (from the details panel, or by editing the form) adds an entry to the record's **history**: the status, the visit date, an optional note, who made the change and when. The calendar shows one visit per stage from this history (`visitEvents` in `models/shared.js`): Demo on the 3rd updated to Ongoing on the 10th shows on both days; an onboarding counts once a month in the "N onboardings" count and the year overview.
 

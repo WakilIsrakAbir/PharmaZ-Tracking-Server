@@ -76,7 +76,8 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] API contract (v3.0.0) and Postman tests updated; checked in Edge on desktop and phone
 
 ### Version 7 (27 Oct 2026)
-- [x] **Demo** status before Ongoing (teal), everywhere
+- [x] **Demo** status before Ongoing, everywhere: purple since 20 Nov 2026 (it was teal, too close to Implementation's green)
+- [x] Status colors that never look alike (20 Nov 2026): Account Creation grey, Demo purple, Ongoing blue, Setup amber, Implementation green, Support brown (Account Creation, Ongoing and Support were indigo, blue and violet)
 - [x] A visit is today or later for the marketing team: the date pickers start at today, the API refuses a visit date in the past (a record keeps an old date); since 28 Oct 2026 admins may pick any day
 - [x] Calendar: past days greyed; their visits can be opened and updated, but no "New … form" for them for the marketing team; the top buttons use today when a past day is picked (admins get the buttons on past days too)
 - [x] "12 onboardings" beside the month name → **year overview** dialog: every month with its counts, other years with ‹ ›, click a month to open it (`GET /calendar/months`)
