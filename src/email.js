@@ -4,11 +4,13 @@ import { env } from './config.js';
 import { dhakaDay } from './utils.js';
 
 // Email, over SMTP (Gmail, Google Workspace, Brevo…: the SMTP_* settings in .env decide which).
-// Three kinds, all carrying the whole form:
+// Four kinds, all carrying the whole form:
 //   assigned   "you were assigned to this form", to each newly assigned person
 //   updated    "this form was edited", to everyone assigned
 //   status     "the status or the visit changed" (Save update), to everyone assigned: the new status
 //              (and the one before), the visit's start and end, and the note come first
+//   removed    "the latest update was deleted, so the onboarding is back to the one before", to
+//              everyone assigned: where it stands now and what the deleted update said come first
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
 const STATUS_LABELS = {
@@ -37,9 +39,10 @@ function mailer() {
 // Emails the form to each recipient ({ name, email }). Never throws: the result says who got the
 // email and who didn't, and why not, so the person who acted can be told ("Saved, but the email to
 // Rafi couldn't be sent: the mail server refused the address").
-//   reason  'assigned' | 'updated' | 'status'
-//   by      the signed-in user who assigned, edited or updated (replies go to them)
-//   change  for 'status': { previousStatus, note }
+//   reason  'assigned' | 'updated' | 'status' | 'removed'
+//   by      the signed-in user who assigned, edited, updated or deleted (replies go to them)
+//   change  for 'status': { previousStatus, note }; for 'removed': { update } (the deleted update's
+//           status, visitDate and visitEndDate)
 //   → { configured, sent: [names], failed: [{ name, reason }] }
 // "Sent" means the mail server took the email. Whether it lands in the inbox, in spam or bounces is
 // decided later by the recipient's mail service, which the API can't see.
@@ -84,25 +87,9 @@ function recordEmail({ record, type, person, by, reason, change = {} }) {
   const displayName = record.name || `Unnamed ${kind}`;
   const status = STATUS_LABELS[record.status] ?? record.status;
   const steps = record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n');
-  const { intro, subject, rows } =
-    reason === 'status'
-      ? statusUpdate({ record, type, kind, displayName, status, visit, steps, by, change })
-      : {
-          intro:
-            reason === 'updated'
-              ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${displayName}. Here is the form as it is now.`
-              : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${displayName}.`,
-          subject: reason === 'updated' ? `Updated: ${displayName} (${kind}) · visit ${visit}` : `Assigned to you: ${displayName} (${kind}) · visit ${visit}`,
-          rows: [
-            ...formRows(type, record),
-            ['Status', status],
-            ['Visit', visit],
-            ['Notes', record.notes],
-            ['Implementation steps', steps],
-            ['Submitted by', personLine(record.createdBy)],
-            [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
-          ],
-        };
+  const details = { record, type, kind, displayName, status, visit, steps, by, change, reason };
+  const content = { status: statusUpdate, removed: removedUpdate }[reason] ?? wholeForm;
+  const { intro, subject, rows } = content(details);
   return {
     from: env.EMAIL_FROM,
     to: person.name && person.name !== person.email ? `"${person.name}" <${person.email}>` : person.email,
@@ -110,6 +97,26 @@ function recordEmail({ record, type, person, by, reason, change = {} }) {
     subject,
     text: textBody({ person, by, intro, rows: filled(rows), link }),
     html: htmlBody({ person, by, intro, rows: filled(rows), link }),
+  };
+}
+
+// Assigned or edited: the whole form.
+function wholeForm({ record, type, kind, displayName, status, visit, steps, by, reason }) {
+  return {
+    intro:
+      reason === 'updated'
+        ? `${by.name} edited the ${kind.toLowerCase()} onboarding form of ${displayName}. Here is the form as it is now.`
+        : `${by.name} assigned you to the ${kind.toLowerCase()} onboarding of ${displayName}.`,
+    subject: reason === 'updated' ? `Updated: ${displayName} (${kind}) · visit ${visit}` : `Assigned to you: ${displayName} (${kind}) · visit ${visit}`,
+    rows: [
+      ...formRows(type, record),
+      ['Status', status],
+      ['Visit', visit],
+      ['Notes', record.notes],
+      ['Implementation steps', steps],
+      ['Submitted by', personLine(record.createdBy)],
+      [reason === 'updated' ? 'Edited by' : 'Assigned by', personLine(by)],
+    ],
   };
 }
 
@@ -129,6 +136,31 @@ function statusUpdate({ record, type, kind, displayName, status, visit, steps, b
       ['Update note', change.note],
       ['Implementation steps', steps],
       ['Updated by', personLine(by)],
+      ...formRows(type, record),
+      ['Notes', record.notes],
+      ['Submitted by', personLine(record.createdBy)],
+    ],
+  };
+}
+
+// The latest update was deleted (by an admin, to correct a mistake): the onboarding is back to the
+// update before it. Where it stands now comes first, then what the deleted update said.
+//   Subject: "Update deleted: Rahman Pharmacy (Pharmacy) is back to Setup · visit Tue 17 Nov 2026, 12:30 PM"
+//   (or "Visit moved back: …" when the status stays the same)
+function removedUpdate({ record, type, kind, displayName, status, visit, steps, by, change }) {
+  const { update } = change;
+  const deletedStatus = STATUS_LABELS[update.status] ?? update.status;
+  const deleted = `${deletedStatus} · visit ${formatVisit(update.visitDate, update.visitEndDate)}`;
+  const statusBack = update.status !== record.status;
+  return {
+    intro: `${by.name} deleted the latest update of the ${kind.toLowerCase()} onboarding of ${displayName} (${deleted}). It is back to ${status}, and the visit is ${visit}.`,
+    subject: statusBack ? `Update deleted: ${displayName} (${kind}) is back to ${status} · visit ${visit}` : `Visit moved back: ${displayName} (${kind}) · ${visit}`,
+    rows: [
+      ['Status', status],
+      ['Visit', visit],
+      ['Deleted update', deleted],
+      ['Implementation steps', steps],
+      ['Deleted by', personLine(by)],
       ...formRows(type, record),
       ['Notes', record.notes],
       ['Submitted by', personLine(record.createdBy)],

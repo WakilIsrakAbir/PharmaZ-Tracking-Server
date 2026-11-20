@@ -102,6 +102,45 @@ variables:
   - key: pastTo
     value: ''
     description: Nine days after pastFrom.
+  - key: fixFirstDate
+    value: ''
+    description: Yesterday at 05:00 UTC, the first visit of the pharmacy whose updates are deleted (Deleting updates).
+  - key: fixSecondDate
+    value: ''
+    description: Three days from now at 05:00 UTC, its Ongoing visit.
+  - key: fixThirdDate
+    value: ''
+    description: Five days from now at 05:00 UTC, its Setup visit.
+  - key: fixPharmacyId
+    value: ''
+    description: Set by "A pharmacy visited yesterday".
+  - key: fixFirstAt
+    value: ''
+    description: When its form was submitted (the first update's `at`), which names the update to delete.
+  - key: fixSecondAt
+    value: ''
+    description: When it was moved to Ongoing.
+  - key: fixThirdAt
+    value: ''
+    description: When it was moved to Setup (the latest update).
+  - key: fixRemoval
+    value: ''
+    description: The removal id from "Delete the visit of yesterday", for Undo.
+  - key: pastOnlyFirstDate
+    value: ''
+    description: Four days ago at 05:00 UTC, the first visit of a pharmacy whose visits have all passed.
+  - key: pastOnlySecondDate
+    value: ''
+    description: Two days ago at 05:00 UTC, its second visit.
+  - key: pastOnlyPharmacyId
+    value: ''
+    description: Set by "A pharmacy with two past visits".
+  - key: pastOnlyFirstAt
+    value: ''
+    description: When its form was submitted.
+  - key: pastOnlySecondAt
+    value: ''
+    description: When it was moved to Ongoing (its latest update).
   - key: doctorVisitEndDate
     value: ''
     description: An hour after doctorVisitDate, set before "A status update emails everyone assigned".

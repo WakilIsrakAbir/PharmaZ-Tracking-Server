@@ -20,7 +20,7 @@ scripts:
       pm.test('only the second marketer stays assigned', () => {
         pm.expect(doctor.assignedTo.map((person) => person.email)).to.eql([pm.collectionVariables.get('otherUserEmail')]);
       });
-      pm.test('the history says who was removed', () => {
-        const last = doctor.history[doctor.history.length - 1] || {};
-        pm.expect(last.note).to.eql('No longer assigned: Partner Co');
+      pm.test('the history gets no line for it either', () => {
+        const notes = (doctor.history || []).map((entry) => entry.note);
+        pm.expect(notes.some((note) => /^No longer assigned: /.test(note))).to.eql(false);
       });

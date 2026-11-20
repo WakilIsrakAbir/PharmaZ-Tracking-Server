@@ -728,8 +728,8 @@ paths:
         The "Assign" button in the details panel. Replaces the list of assigned people with
         `assignees`. A teammate's address (an active account) links the doctor to them: they see it
         and can update it, like the person who submitted it. Any other address is kept as an outside
-        assignee who only gets the emails, under the `name` given. When the list changes, `history`
-        gets an entry such as "Assigned to Rafi Hasan, Partner Co" or "No longer assigned: Sumi Akter".
+        assignee who only gets the emails, under the `name` given. Assigning isn't an update of the
+        onboarding, so it adds nothing to `history`.
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -745,7 +745,7 @@ paths:
                 - { email: partner@example.com, name: Partner Co }
       responses:
         '200':
-          description: The doctor, with the new assignees and history entry.
+          description: The doctor, with the new assignees.
           content:
             application/json:
               schema:
@@ -760,6 +760,100 @@ paths:
                         properties:
                           email:
                             $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}/history/{at}:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+      - $ref: '#/components/parameters/UpdateAt'
+    delete:
+      tags: [Doctors]
+      operationId: deleteDoctorUpdate
+      summary: Delete one update from the history (admin)
+      description: |
+        Deletes the update made at `at`, as if it had never been made, to correct a mistake. The
+        calendar is worked out again from the updates that are left, so the visit it put on the
+        calendar goes away (or moves back, when the update had moved a visit). `meta.change` says
+        exactly what changed.
+
+        - **An earlier update:** the doctor stays where it is; nobody is emailed.
+        - **The latest update:** the doctor goes back to the update before it (its status, visit and
+          end time; the implementation checklist stays as it is). When that changes today or a later
+          day, everyone assigned is emailed (not the admin who deleted it). Changing only days that
+          have passed emails nobody.
+        - **The only update** can't be deleted (`409`): delete the form instead.
+
+        **Dry run.** With `?dryRun=true` nothing changes: `data` is `null` and `meta.change` says what
+        the delete would do (the web app shows it before asking to confirm).
+
+        **Undo.** What was deleted is kept. Send `meta.removal` to `POST /doctors/{id}/history/restore`
+        to put it back.
+      parameters:
+        - $ref: '#/components/parameters/DryRun'
+      responses:
+        '200':
+          description: The doctor after the delete (or `null` on a dry run), and what changed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    anyOf:
+                      - $ref: '#/components/schemas/Doctor'
+                      - type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/HistoryRemovalMeta'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/OnlyUpdate'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}/history/restore:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    post:
+      tags: [Doctors]
+      operationId: restoreDoctorUpdate
+      summary: Undo deleting an update (admin)
+      description: |
+        Puts back what one delete took away (named by the `removal` id it answered with), in its
+        place in the history. When it is the latest update again, the doctor is back where it stood;
+        everyone assigned is emailed when that changes today or a later day. A `removal` that was
+        already put back gets `404`.
+      requestBody:
+        $ref: '#/components/requestBodies/RestoreUpdate'
+      responses:
+        '200':
+          description: The doctor with the update back, and what changed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Doctor'
+                  meta:
+                    $ref: '#/components/schemas/HistoryRestoreMeta'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -930,15 +1024,15 @@ paths:
     parameters:
       - $ref: '#/components/parameters/RecordId'
     put:
-      tags: [Pharmacys]
+      tags: [Pharmacies]
       operationId: assignPharmacy
       summary: Set who is assigned (admin)
       description: |
         The "Assign" button in the details panel. Replaces the list of assigned people with
         `assignees`. A teammate's address (an active account) links the pharmacy to them: they see it
         and can update it, like the person who submitted it. Any other address is kept as an outside
-        assignee who only gets the emails, under the `name` given. When the list changes, `history`
-        gets an entry such as "Assigned to Rafi Hasan, Partner Co" or "No longer assigned: Sumi Akter".
+        assignee who only gets the emails, under the `name` given. Assigning isn't an update of the
+        onboarding, so it adds nothing to `history`.
 
         Each newly assigned person is emailed the whole form, when the API has SMTP settings.
         `meta.email` says whether that worked; the assignment is saved either way.
@@ -954,7 +1048,7 @@ paths:
                 - { email: partner@example.com, name: Partner Co }
       responses:
         '200':
-          description: The pharmacy, with the new assignees and history entry.
+          description: The pharmacy, with the new assignees.
           content:
             application/json:
               schema:
@@ -969,6 +1063,84 @@ paths:
                         properties:
                           email:
                             $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies/{id}/history/{at}:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+      - $ref: '#/components/parameters/UpdateAt'
+    delete:
+      tags: [Pharmacies]
+      operationId: deletePharmacyUpdate
+      summary: Delete one update from the history (admin)
+      description: |
+        Works exactly like `DELETE /doctors/{id}/history/{at}`: deletes the update made at `at`, as
+        if it had never been made, and the calendar follows. Deleting the latest update takes the
+        pharmacy back to the one before it; everyone assigned is emailed only when that changes today
+        or a later day. `?dryRun=true` only says what would change. The only update can't be deleted
+        (`409`). `meta.removal` undoes it with `POST /pharmacies/{id}/history/restore`.
+      parameters:
+        - $ref: '#/components/parameters/DryRun'
+      responses:
+        '200':
+          description: The pharmacy after the delete (or `null` on a dry run), and what changed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    anyOf:
+                      - $ref: '#/components/schemas/Pharmacy'
+                      - type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/HistoryRemovalMeta'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/OnlyUpdate'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies/{id}/history/restore:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+    post:
+      tags: [Pharmacies]
+      operationId: restorePharmacyUpdate
+      summary: Undo deleting an update (admin)
+      description: Works exactly like `POST /doctors/{id}/history/restore`.
+      requestBody:
+        $ref: '#/components/requestBodies/RestoreUpdate'
+      responses:
+        '200':
+          description: The pharmacy with the update back, and what changed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pharmacy'
+                  meta:
+                    $ref: '#/components/schemas/HistoryRestoreMeta'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -1333,6 +1505,21 @@ components:
       schema:
         $ref: '#/components/schemas/ObjectId'
       example: '6717b2e4c2b1e45d8a0f2b10'
+    UpdateAt:
+      name: at
+      in: path
+      required: true
+      description: The update to delete, named by when it was made (its `at` in `history`, exactly as the API sent it).
+      schema:
+        $ref: '#/components/schemas/DateTime'
+      example: '2026-11-04T08:15:30.123Z'
+    DryRun:
+      name: dryRun
+      in: query
+      description: '`true` changes nothing and only says what would change (`meta.change`).'
+      schema:
+        type: boolean
+        default: false
     Search:
       name: search
       in: query
@@ -1458,6 +1645,20 @@ components:
         default: called_desc
 
   requestBodies:
+    RestoreUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [removal]
+            properties:
+              removal:
+                description: The `meta.removal` id that the delete answered with.
+                allOf:
+                  - $ref: '#/components/schemas/ObjectId'
+          example:
+            removal: '6728c1d2e3f4a5b6c7d8e9f0'
     SupportCallForm:
       required: true
       description: The call, as JSON.
@@ -1514,6 +1715,16 @@ components:
                     done: false
 
   responses:
+    OnlyUpdate:
+      description: This is the only update of the form, so it can't be deleted (delete the form instead).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: CONFLICT
+              message: This is the only update, so it can't be deleted. To remove this pharmacy completely, delete the form.
     ValidationError:
       description: The request didn't pass validation. `fields` says what to fix, in words the web app can show.
       content:
@@ -1813,7 +2024,7 @@ components:
                 description: For an outside address. Optional; the address itself is shown when there is none.
     EmailReport:
       type: object
-      description: What happened to the emails (assigning, an edited form, a status update).
+      description: What happened to the emails (assigning, an edited form, a status update, a deleted update).
       required: [configured, sent, failed]
       properties:
         configured:
@@ -2063,7 +2274,10 @@ components:
       enum: [doctor, pharmacy]
     HistoryEntry:
       type: object
-      description: One status or visit-date change.
+      description: |
+        One update of the onboarding: the form being submitted or edited, or a status update. `at`
+        names it, to delete it (`DELETE …/history/{at}`). Older records may also have lines from
+        assigning people ("Assigned to …"); those are not updates and the API leaves them out.
       required: [status, visitDate, note, steps, by, at]
       properties:
         status:
@@ -2077,7 +2291,7 @@ components:
             - type: 'null'
         note:
           type: string
-          description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, "Assigned to …" / "No longer assigned: …" when the assigned teammates changed, or the note given with a status change (empty when none was given).'
+          description: '"Form submitted" for the first entry, "Form updated" when an edit changed the status or visit date, or the note given with a status change (empty when none was given).'
         steps:
           description: How far the implementation steps were at that moment. Set by status updates to `implementation` when there are steps; otherwise `null`.
           anyOf:
@@ -2091,6 +2305,110 @@ components:
         at:
           $ref: '#/components/schemas/DateTime'
           description: When the change was made.
+    OnboardingState:
+      type: object
+      description: Where an onboarding stands, or stood.
+      required: [status, visitDate, visitEndDate]
+      properties:
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+        visitEndDate:
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+    VisitBrief:
+      type: object
+      description: One visit as the calendar shows it, with how far the implementation steps were at it.
+      required: [status, visitDate, visitEndDate, steps]
+      properties:
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+        visitEndDate:
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+        steps:
+          anyOf:
+            - $ref: '#/components/schemas/StepProgress'
+            - type: 'null'
+    HistoryChange:
+      type: object
+      description: What deleting an update (or putting it back) changes.
+      required: [update, onboarding, calendar, emails]
+      properties:
+        update:
+          description: The update that is deleted (or put back).
+          allOf:
+            - $ref: '#/components/schemas/HistoryEntry'
+        onboarding:
+          type: object
+          description: Where the onboarding stood before and stands after. `changed` is `true` only when the latest update is deleted (or put back) and that changes the status, visit or end time.
+          required: [before, after, changed]
+          properties:
+            before:
+              $ref: '#/components/schemas/OnboardingState'
+            after:
+              $ref: '#/components/schemas/OnboardingState'
+            changed:
+              type: boolean
+        calendar:
+          type: object
+          description: The visits that leave the calendar, the ones that come (back) on a new day, and the ones that stay on their day with another status, time or step count.
+          required: [removed, added, changed]
+          properties:
+            removed:
+              type: array
+              items:
+                $ref: '#/components/schemas/VisitBrief'
+            added:
+              type: array
+              items:
+                $ref: '#/components/schemas/VisitBrief'
+            changed:
+              type: array
+              items:
+                type: object
+                required: [before, after]
+                properties:
+                  before:
+                    $ref: '#/components/schemas/VisitBrief'
+                  after:
+                    $ref: '#/components/schemas/VisitBrief'
+        emails:
+          type: array
+          description: Who is (or, on a dry run, would be) emailed. Everyone assigned except the admin who did it, and only when the onboarding changes on today or a later day; otherwise empty.
+          items:
+            type: string
+          examples: [['Rafi Hasan']]
+    HistoryRemovalMeta:
+      type: object
+      required: [dryRun, removal, change]
+      properties:
+        dryRun:
+          type: boolean
+        removal:
+          description: The id that puts the deleted update back (`POST …/history/restore`), or `null` on a dry run.
+          anyOf:
+            - $ref: '#/components/schemas/ObjectId'
+            - type: 'null'
+        change:
+          $ref: '#/components/schemas/HistoryChange'
+        email:
+          description: What happened to the emails (left out on a dry run).
+          allOf:
+            - $ref: '#/components/schemas/EmailReport'
+    HistoryRestoreMeta:
+      type: object
+      required: [change, email]
+      properties:
+        change:
+          $ref: '#/components/schemas/HistoryChange'
+        email:
+          $ref: '#/components/schemas/EmailReport'
     StepProgress:
       type: object
       description: How many implementation steps are done, out of how many.

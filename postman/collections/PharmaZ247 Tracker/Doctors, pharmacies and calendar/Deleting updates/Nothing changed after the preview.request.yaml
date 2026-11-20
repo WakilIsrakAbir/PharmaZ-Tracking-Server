@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}'
+order: 3100
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('all three updates are still there', () => {
+        pm.expect((pharmacy.history || []).map((entry) => entry.status)).to.eql(['demo', 'ongoing', 'setup']);
+      });
+      pm.test('deleted updates are never sent', () => pm.expect(pharmacy).to.not.have.property('removedHistory'));

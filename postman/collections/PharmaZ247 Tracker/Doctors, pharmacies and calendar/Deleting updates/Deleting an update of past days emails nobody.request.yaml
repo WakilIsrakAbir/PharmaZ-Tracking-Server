@@ -1,0 +1,20 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{pastOnlyPharmacyId}}/history/{{pastOnlySecondAt}}'
+order: 4300
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      pm.test('the form goes back to the demo visit of 4 days ago', () => {
+        pm.expect(pharmacy.status).to.eql('demo');
+        pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('pastOnlyFirstDate'));
+        pm.expect(meta.change.onboarding.changed).to.eql(true);
+      });
+      pm.test('only days that have passed change, so nobody is emailed, even though someone is assigned', () => {
+        pm.expect(pharmacy.assignedTo).to.have.lengthOf(1);
+        pm.expect(meta.change.emails).to.eql([]);
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

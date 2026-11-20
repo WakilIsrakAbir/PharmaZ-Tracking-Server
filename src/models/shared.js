@@ -18,16 +18,32 @@ const stepSchema = new mongoose.Schema(
   { toJSON: { transform: (doc, { _id, ...step }) => ({ id: String(_id), ...step }) } },
 );
 
+// One update in the history: the status and visit it set, its note, who made it and when (`at`,
+// which also names the update when it is deleted: see DELETE …/history/:at in routes/records.js).
+const historyFields = {
+  status: { type: String, enum: STATUSES, required: true },
+  visitDate: { type: Date, required: true },   // the calendar also shows the earlier visits (see visitEvents)
+  visitEndDate: { type: Date, default: null }, // when that visit ended, if it was given
+  note: { type: String, default: '' },
+  // How many implementation steps were done at that moment, e.g. { done: 2, total: 4 }.
+  steps: { type: new mongoose.Schema({ done: Number, total: Number }, { _id: false }), default: null },
+  by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  at: { type: Date, default: Date.now },
+};
+
 const historyEntrySchema = new mongoose.Schema(
+  { ...historyFields, visitDate: { ...historyFields.visitDate, index: true } },
+  { _id: false },
+);
+
+// A deleted update, kept with who deleted it and when, so "Undo" can put it back. `removal` groups
+// what one delete took away (the update, and old "Assigned to …" lines that repeated it).
+const removedEntrySchema = new mongoose.Schema(
   {
-    status: { type: String, enum: STATUSES, required: true },
-    visitDate: { type: Date, required: true, index: true },   // the calendar also shows the earlier visits (see visitEvents)
-    visitEndDate: { type: Date, default: null },              // when that visit ended, if it was given
-    note: { type: String, default: '' },
-    // How many implementation steps were done at that moment, e.g. { done: 2, total: 4 }.
-    steps: { type: new mongoose.Schema({ done: Number, total: Number }, { _id: false }), default: null },
-    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    at: { type: Date, default: Date.now },
+    ...historyFields,
+    removal: { type: mongoose.Schema.Types.ObjectId, required: true },
+    removedAt: { type: Date, default: Date.now },
+    removedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { _id: false },
 );
@@ -50,26 +66,49 @@ export const trackingFields = {
   notes: { type: String, default: '' },
   implementationSteps: { type: [stepSchema], default: [] },
   history: { type: [historyEntrySchema], default: [] },
+  // Deleted updates (never sent by the API; read it with .select('+removedHistory')).
+  removedHistory: { type: [removedEntrySchema], default: [], select: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true }, // who submitted it
   // Who an admin assigned to this record. A teammate (`user` set) sees and can update it, like the
   // submitter; an outside email address only gets the emails.
   assignedTo: { type: [assigneeSchema], default: [] },
 };
 
-// What the API sends: `id`, the `type`, and each assignee as
-// { id, name, email, phone, teammate } (populate assignedTo.user first; see PEOPLE in routes/records.js).
+// What the API sends: `id`, the `type`, each assignee as { id, name, email, phone, teammate }
+// (populate assignedTo.user first; see PEOPLE in routes/records.js), and the history's updates
+// (without old "Assigned to …" lines, see statusHistory). Deleted updates are never sent.
 export const recordOptions = (type) => ({
   timestamps: true,
   toJSON: {
     versionKey: false,
-    transform: (doc, { _id, assignedTo = [], ...record }) => ({
+    transform: (doc, { _id, assignedTo = [], history = [], removedHistory, ...record }) => ({
       id: String(_id),
       type,
       ...record,
+      history: statusHistory(history),
       assignedTo: assignedTo.map(assigneeJson),
     }),
   },
 });
+
+// Assigning people used to add a line to the history ("Assigned to Rafi", "No longer assigned: Sumi")
+// that repeated the status and visit of the update before it. Such a line isn't an update of the
+// onboarding: the history and the calendar leave it out (assigning no longer adds one). `previous`
+// is the history entry just before it.
+const ASSIGNMENT_NOTE = /^(Assigned to |No longer assigned: )/;
+export function isAssignmentLine(entry, previous) {
+  if (!ASSIGNMENT_NOTE.test(entry.note ?? '') || entry.steps) return false;
+  if (!previous) return true;
+  return entry.status === previous.status && sameMoment(entry.visitDate, previous.visitDate) && sameMoment(entry.visitEndDate, previous.visitEndDate);
+}
+
+// The updates in a history, oldest first: every entry but the old "Assigned to …" lines.
+export function statusHistory(history = []) {
+  return history.filter((entry, index) => !isAssignmentLine(entry, history[index - 1]));
+}
+
+// Two moments (Dates, ISO strings or null) are the same, or both missing.
+export const sameMoment = (a, b) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
 
 // A populated assignee → what the API sends. An outside email has no account, so no id or phone;
 // its name is the one given when assigning, or the address itself when none was.
@@ -123,11 +162,12 @@ export function allOf(...filters) {
 // assigning repeat the status and day, so they change nothing. `steps` is how far the implementation
 // steps were at that visit ({ done, total }, or null). At most one visit a day (the later one wins).
 // The last visit is where the record stands now (`current`); the record's own status and visit date
-// have the final say, which also covers a record without a history.
+// have the final say, which also covers a record without a history. Old "Assigned to …" lines are
+// left out (see statusHistory), so deleting an update takes its visit away even when one followed it.
 export function visitEvents({ status, visitDate, visitEndDate = null, history = [] }) {
   const visits = [];
   let doneSoFar = 0; // implementation steps done, as the history goes
-  for (const entry of [...history, { status, visitDate, visitEndDate }]) {
+  for (const entry of [...statusHistory(history), { status, visitDate, visitEndDate }]) {
     const visit = { status: entry.status, visitDate: entry.visitDate, visitEndDate: entry.visitEndDate ?? null, steps: entry.steps ?? null, worked: false };
     const progressed = Boolean(entry.steps) && entry.steps.done > doneSoFar; // steps were ticked off in this update
     if (entry.steps) doneSoFar = entry.steps.done;
@@ -158,6 +198,30 @@ export function visitEvents({ status, visitDate, visitEndDate = null, history = 
     byDay.set(day, visit);
   }
   return [...byDay.values()].map(({ worked, ...visit }, index, all) => ({ ...visit, current: index === all.length - 1 }));
+}
+
+// The visits as the calendar shows them: the current one has the checklist's progress as it is now,
+// an earlier one how far the steps were at it.
+export const calendarVisits = (record) =>
+  visitEvents(record).map((visit) => (visit.current ? { ...visit, steps: countSteps(record.implementationSteps) } : visit));
+
+// How the calendar changes from one version of a record to another (a deleted update, put back):
+//   removed  visits that leave the calendar          [{ status, visitDate, visitEndDate, steps }]
+//   added    visits that come (back) on a new day    [same]
+//   changed  visits that stay on their day but get another status, time or step count
+//            [{ before, after }]
+export function calendarChange(before, after) {
+  const byDay = (visits) => new Map(visits.map(({ status, visitDate, visitEndDate, steps }) => [dhakaDay(visitDate), { status, visitDate, visitEndDate, steps }]));
+  const old = byDay(before);
+  const now = byDay(after);
+  const stepsShown = (visit) => (visit.status === 'implementation' && visit.steps ? `${visit.steps.done}/${visit.steps.total}` : '');
+  const same = (a, b) =>
+    a.status === b.status && sameMoment(a.visitDate, b.visitDate) && sameMoment(a.visitEndDate, b.visitEndDate) && stepsShown(a) === stepsShown(b);
+  return {
+    removed: [...old].filter(([day]) => !now.has(day)).map(([, visit]) => visit),
+    added: [...now].filter(([day]) => !old.has(day)).map(([, visit]) => visit),
+    changed: [...now].filter(([day, visit]) => old.has(day) && !same(old.get(day), visit)).map(([day, visit]) => ({ before: old.get(day), after: visit })),
+  };
 }
 
 // { done: 2, total: 4 }, or null when there are no steps.

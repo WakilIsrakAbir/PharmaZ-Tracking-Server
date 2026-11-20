@@ -1,0 +1,26 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/history/{{fixThirdAt}}'
+order: 3600
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      const change = meta.change || {};
+      pm.test('the form goes back to the update before: Ongoing in 3 days', () => {
+        pm.expect(pharmacy.status).to.eql('ongoing');
+        pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('fixSecondDate'));
+        pm.expect(pharmacy.history.map((entry) => entry.status)).to.eql(['demo', 'ongoing']);
+        pm.expect(change.onboarding.changed).to.eql(true);
+        pm.expect(change.onboarding.before.status).to.eql('setup');
+      });
+      pm.test('the Setup visit leaves the calendar', () => {
+        const removed = change.calendar.removed.map((visit) => [visit.status, visit.visitDate]);
+        pm.expect(removed).to.eql([['setup', pm.collectionVariables.get('fixThirdDate')]]);
+      });
+      pm.test('it changes days still to come, so the people assigned are emailed', () => {
+        pm.expect(change.emails).to.eql(['Second QA Marketer']);
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] }); // no SMTP in the tests
+      });

@@ -1,0 +1,26 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/history/{{fixFirstAt}}'
+order: 3200
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      pm.test('the update is gone from the history, the others stay', () => {
+        pm.expect(pharmacy.history.map((entry) => entry.status)).to.eql(['ongoing', 'setup']);
+      });
+      pm.test('the form still stands at Setup in 5 days', () => {
+        pm.expect(pharmacy.status).to.eql('setup');
+        pm.expect(pharmacy.visitDate).to.eql(pm.collectionVariables.get('fixThirdDate'));
+      });
+      pm.test('answers with a removal id, for Undo', () => {
+        pm.expect(meta.dryRun).to.eql(false);
+        pm.expect(meta.removal).to.match(/^[a-f\d]{24}$/);
+        pm.collectionVariables.set('fixRemoval', meta.removal);
+      });
+      pm.test('an earlier update emails nobody', () => {
+        pm.expect(meta.change.emails).to.eql([]);
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

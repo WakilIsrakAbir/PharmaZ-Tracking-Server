@@ -1,0 +1,21 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{pastOnlyPharmacyId}}/status'
+order: 4200
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "ongoing",
+      "visitDate": "{{pastOnlySecondDate}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const history = (pm.response.json().data || {}).history || [];
+      pm.collectionVariables.set('pastOnlySecondAt', (history[history.length - 1] || {}).at);

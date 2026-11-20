@@ -1,0 +1,22 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/assignees'
+order: 2100
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "assignees": [{ "email": "{{otherUserEmail}}" }]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('the history still has only the form being submitted', () => {
+        pm.expect((pharmacy.history || []).map((entry) => entry.note)).to.eql(['Form submitted']);
+      });

@@ -1,0 +1,8 @@
+$kind: collection
+description: |-
+  An admin can delete one update from a form's history, as if it had never been made; the calendar
+  follows. Deleting the latest update takes the form back to the one before it, and the people
+  assigned are emailed only when that touches today or a later day. `?dryRun=true` says what would
+  change without changing anything, and "Undo" puts a deleted update back. Marketers can't delete.
+  The field marketer is signed in at the start and again at the end.
+order: 3800

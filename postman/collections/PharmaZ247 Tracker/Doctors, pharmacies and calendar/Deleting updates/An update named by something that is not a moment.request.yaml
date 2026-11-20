@@ -1,0 +1,17 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{pastOnlyPharmacyId}}/history/yesterday?dryRun=maybe'
+order: 4600
+queryParams:
+  - key: dryRun
+    value: maybe
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      pm.test('names both problems', () => {
+        const { error = {} } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.keys(['at', 'dryRun']);
+      });

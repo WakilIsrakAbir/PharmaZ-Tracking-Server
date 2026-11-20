@@ -1,0 +1,14 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{pastOnlyPharmacyId}}/history/{{pastOnlyFirstAt}}'
+order: 4400
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('409 Conflict', () => pm.response.to.have.status(409));
+      pm.test('says to delete the form instead', () => {
+        const { error = {} } = pm.response.json();
+        pm.expect(error.code).to.eql('CONFLICT');
+        pm.expect(error.message).to.include('delete the form');
+      });

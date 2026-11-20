@@ -1,0 +1,35 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Past Visits Pharmacy",
+      "status": "demo",
+      "visitDate": "{{pastOnlyFirstDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Visits 4 and 2 days ago, at 05:00 UTC: both have passed.
+      const at = (days) => {
+        const day = new Date();
+        day.setUTCDate(day.getUTCDate() + days);
+        day.setUTCHours(5, 0, 0, 0);
+        return day.toISOString();
+      };
+      pm.collectionVariables.set('pastOnlyFirstDate', at(-4));
+      pm.collectionVariables.set('pastOnlySecondDate', at(-2));
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const pharmacy = pm.response.json().data || {};
+      if (pharmacy.id) pm.collectionVariables.set('pastOnlyPharmacyId', pharmacy.id);
+      pm.collectionVariables.set('pastOnlyFirstAt', ((pharmacy.history || [])[0] || {}).at);

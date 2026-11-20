@@ -1,0 +1,37 @@
+$kind: http-request
+method: DELETE
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/history/{{fixFirstAt}}?dryRun=true'
+order: 3000
+queryParams:
+  - key: dryRun
+    value: 'true'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data, meta = {} } = pm.response.json();
+      const change = meta.change || {};
+      pm.test('a dry run changes nothing: no record, no removal id', () => {
+        pm.expect(meta.dryRun).to.eql(true);
+        pm.expect(data).to.eql(null);
+        pm.expect(meta.removal).to.eql(null);
+      });
+      pm.test('names the update that would be deleted', () => {
+        pm.expect(change.update.status).to.eql('demo');
+        pm.expect(change.update.visitDate).to.eql(pm.collectionVariables.get('fixFirstDate'));
+        pm.expect(change.update.at).to.eql(pm.collectionVariables.get('fixFirstAt'));
+        pm.expect(change.update.note).to.eql('Form submitted');
+        pm.expect(change.update.by).to.have.property('name');
+      });
+      pm.test('the visit of yesterday would leave the calendar, nothing else', () => {
+        const removed = change.calendar.removed.map((visit) => [visit.status, visit.visitDate]);
+        pm.expect(removed).to.eql([['demo', pm.collectionVariables.get('fixFirstDate')]]);
+        pm.expect(change.calendar.added).to.eql([]);
+        pm.expect(change.calendar.changed).to.eql([]);
+      });
+      pm.test('the form stays where it is, so nobody would be emailed', () => {
+        pm.expect(change.onboarding.changed).to.eql(false);
+        pm.expect(change.onboarding.after.status).to.eql('setup');
+        pm.expect(change.emails).to.eql([]);
+      });

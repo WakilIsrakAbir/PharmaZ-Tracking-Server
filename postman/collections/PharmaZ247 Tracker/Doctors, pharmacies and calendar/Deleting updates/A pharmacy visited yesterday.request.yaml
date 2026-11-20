@@ -1,0 +1,36 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Corrected Visit Pharmacy",
+      "status": "demo",
+      "visitDate": "{{fixFirstDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Its demo visit was yesterday, its next ones are 3 and 5 days from now (all at 05:00 UTC).
+      const at = (days) => {
+        const day = new Date();
+        day.setUTCDate(day.getUTCDate() + days);
+        day.setUTCHours(5, 0, 0, 0);
+        return day.toISOString();
+      };
+      pm.collectionVariables.set('fixFirstDate', at(-1));
+      pm.collectionVariables.set('fixSecondDate', at(3));
+      pm.collectionVariables.set('fixThirdDate', at(5));
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const pharmacy = pm.response.json().data || {};
+      if (pharmacy.id) pm.collectionVariables.set('fixPharmacyId', pharmacy.id);
+      pm.collectionVariables.set('fixFirstAt', ((pharmacy.history || [])[0] || {}).at);

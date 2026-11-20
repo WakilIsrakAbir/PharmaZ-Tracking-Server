@@ -1,0 +1,24 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/status'
+order: 2300
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "setup",
+      "visitDate": "{{fixThirdDate}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const history = (pm.response.json().data || {}).history || [];
+      pm.test('the history has the three updates', () => {
+        pm.expect(history.map((entry) => entry.status)).to.eql(['demo', 'ongoing', 'setup']);
+      });
+      pm.collectionVariables.set('fixThirdAt', (history[history.length - 1] || {}).at);

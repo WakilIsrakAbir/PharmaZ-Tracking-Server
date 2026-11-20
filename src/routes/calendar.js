@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/errors.js';
 import { Doctor } from '../models/Doctor.js';
 import { Pharmacy } from '../models/Pharmacy.js';
-import { allOf, assigneeJson, countSteps, visibleTo, visitEvents } from '../models/shared.js';
+import { allOf, assigneeJson, calendarVisits, visibleTo, visitEvents } from '../models/shared.js';
 import { dhakaDay, startOfDhakaDay } from '../utils.js';
 
 // /api/v1/calendar?from=…&to=…        every visit in a date range, for the month grid on the dashboard
@@ -24,8 +24,9 @@ const rangeQuery = z
   .refine(({ from, to }) => to > from, { path: ['to'], error: 'The end date must be after the start date.' })
   .refine(({ from, to }) => to - from <= 62 * DAY, { path: ['to'], error: 'Ask for at most 62 days at a time.' });
 
-// The history's status, day, time of the change (at) and steps decide the visits (see visitEvents).
-const HISTORY = 'history.status history.visitDate history.visitEndDate history.at history.steps';
+// The history's status, day, time of the change (at) and steps decide the visits (see visitEvents);
+// the note tells the old "Assigned to …" lines, which don't count, from the updates.
+const HISTORY = 'history.status history.visitDate history.visitEndDate history.at history.steps history.note';
 const FIELDS = `name address status implementationSteps visitDate visitEndDate ${HISTORY} phone createdBy assignedTo`;
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
@@ -44,7 +45,8 @@ function withVisitsBetween(user, from, to) {
 }
 
 // A record's visits on or after `from` and before `to`.
-const visitsBetween = (record, from, to) => visitEvents(record).filter(({ visitDate }) => visitDate >= from && visitDate < to);
+const inRange = (from, to) => ({ visitDate }) => visitDate >= from && visitDate < to;
+const visitsBetween = (record, from, to) => visitEvents(record).filter(inRange(from, to));
 
 // One entry per month of the year, January to December, with the counts (zero when there is nothing).
 // A doctor or pharmacy with several visits in one month counts once in that month.
@@ -93,7 +95,8 @@ router.get('/', validate({ query: rangeQuery }), async (req, res) => {
 // Just what a calendar chip and the day list need, for each of the record's visits in the range.
 function calendarItems(type, record, place, from, to) {
   const id = String(record._id);
-  return visitsBetween(record, from, to).map(({ status, visitDate, visitEndDate, steps, current }) => ({
+  // An earlier visit shows how far the steps were at it; the current one, the checklist as it is now.
+  return calendarVisits(record).filter(inRange(from, to)).map(({ status, visitDate, visitEndDate, steps, current }) => ({
     id,
     key: `${id}:${dhakaDay(visitDate)}`,
     type,
@@ -103,7 +106,7 @@ function calendarItems(type, record, place, from, to) {
     status,
     current,
     now: { status: record.status, visitDate: record.visitDate, visitEndDate: record.visitEndDate ?? null },
-    steps: current ? countSteps(record.implementationSteps) : steps, // an earlier visit: how far the steps were then
+    steps,
     visitDate,
     visitEndDate,
     phone: record.phone,

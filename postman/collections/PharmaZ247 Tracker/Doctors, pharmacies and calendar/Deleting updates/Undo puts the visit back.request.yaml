@@ -1,0 +1,27 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies/{{fixPharmacyId}}/history/restore'
+order: 3400
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "removal": "{{fixRemoval}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      pm.test('the update is back in its place', () => {
+        pm.expect(pharmacy.history.map((entry) => entry.status)).to.eql(['demo', 'ongoing', 'setup']);
+        pm.expect(pharmacy.history[0].at).to.eql(pm.collectionVariables.get('fixFirstAt'));
+      });
+      pm.test('the visit of yesterday is back on the calendar, and nobody is emailed', () => {
+        pm.expect(meta.change.calendar.added.map((visit) => visit.visitDate)).to.eql([pm.collectionVariables.get('fixFirstDate')]);
+        pm.expect(meta.change.emails).to.eql([]);
+      });

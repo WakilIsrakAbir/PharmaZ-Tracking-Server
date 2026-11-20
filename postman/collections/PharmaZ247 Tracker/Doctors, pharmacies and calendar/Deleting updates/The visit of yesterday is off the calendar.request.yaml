@@ -1,0 +1,32 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{pastFrom}}&to={{pastTo}}'
+order: 3300
+queryParams:
+  - key: from
+    value: '{{pastFrom}}'
+  - key: to
+    value: '{{pastTo}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // From yesterday at 00:00 UTC, for nine days.
+      const from = new Date();
+      from.setUTCDate(from.getUTCDate() - 1);
+      from.setUTCHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 9);
+      pm.collectionVariables.set('pastFrom', from.toISOString());
+      pm.collectionVariables.set('pastTo', to.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const visits = (pm.response.json().data || []).filter((item) => item.id === pm.collectionVariables.get('fixPharmacyId'));
+      pm.test('only the Ongoing and Setup visits are left', () => {
+        pm.expect(visits.map((visit) => [visit.status, visit.visitDate, visit.current])).to.eql([
+          ['ongoing', pm.collectionVariables.get('fixSecondDate'), false],
+          ['setup', pm.collectionVariables.get('fixThirdDate'), true],
+        ]);
+      });

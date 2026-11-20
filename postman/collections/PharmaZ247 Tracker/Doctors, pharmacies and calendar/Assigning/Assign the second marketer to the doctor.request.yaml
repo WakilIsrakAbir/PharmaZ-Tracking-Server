@@ -30,10 +30,9 @@ scripts:
         const outsider = doctor.assignedTo[1];
         pm.expect(outsider).to.eql({ id: null, name: 'Partner Co', email: 'partner@example.com', phone: null, teammate: false });
       });
-      pm.test('the history remembers who was assigned', () => {
-        const last = doctor.history[doctor.history.length - 1] || {};
-        pm.expect(last.note).to.eql('Assigned to Second QA Marketer, Partner Co');
-        pm.expect(last.status).to.eql(doctor.status);
+      pm.test('assigning is not an update of the onboarding: the history gets no line for it', () => {
+        const notes = (doctor.history || []).map((entry) => entry.note);
+        pm.expect(notes.some((note) => /^Assigned to /.test(note))).to.eql(false);
       });
       pm.test('says that no email was sent, because SMTP is not set up in the tests', () => {
         pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
