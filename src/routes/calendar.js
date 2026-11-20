@@ -4,12 +4,13 @@ import { z } from 'zod';
 import { validate } from '../middleware/errors.js';
 import { Doctor } from '../models/Doctor.js';
 import { Pharmacy } from '../models/Pharmacy.js';
-import { allOf, assigneeJson, calendarVisits, visibleTo, visitEvents } from '../models/shared.js';
+import { allOf, assigneeJson, goingOn, visibleTo, visitsFor } from '../models/shared.js';
 import { dhakaDay, startOfDhakaDay } from '../utils.js';
 
 // /api/v1/calendar?from=…&to=…        every visit in a date range, for the month grid on the dashboard
 // /api/v1/calendar/months?year=2026   how many onboardings each month of a year has, for the year overview
 // Marketing people get the visits they submitted or were assigned to; admins get the whole team's.
+// Someone assigned to only some visits of an onboarding (a visit's own team) gets just those.
 // A record can have several visits, one per stage, read from its history (visitEvents in models/shared.js):
 // after "Demo on the 3rd" is updated to "Ongoing on the 10th", both days show it.
 const router = Router();
@@ -27,10 +28,13 @@ const rangeQuery = z
 // The history's status, day, time of the change (at) and steps decide the visits (see visitEvents);
 // the note tells the old "Assigned to …" lines, which don't count, from the updates.
 const HISTORY = 'history.status history.visitDate history.visitEndDate history.at history.steps history.note';
-const FIELDS = `name address status implementationSteps visitDate visitEndDate ${HISTORY} phone createdBy assignedTo`;
+// Who is assigned decides who sees which visits (visitsFor) and who goes on each (goingOn).
+const PEOPLE_FIELDS = 'createdBy assignedTo visitTeams';
+const FIELDS = `name address status implementationSteps visitDate visitEndDate ${HISTORY} phone ${PEOPLE_FIELDS}`;
 const PEOPLE = [
   { path: 'createdBy', select: 'name' },
   { path: 'assignedTo.user', select: 'name phone' },
+  { path: 'visitTeams.assignedTo.user', select: 'name phone' },
 ];
 
 const monthsQuery = z.object({
@@ -44,9 +48,9 @@ function withVisitsBetween(user, from, to) {
   return allOf(visibleTo(user), { $or: [{ visitDate: range }, { 'history.visitDate': range }] });
 }
 
-// A record's visits on or after `from` and before `to`.
+// The visits of a record this person sees, on or after `from` and before `to`.
 const inRange = (from, to) => ({ visitDate }) => visitDate >= from && visitDate < to;
-const visitsBetween = (record, from, to) => visitEvents(record).filter(inRange(from, to));
+const visitsBetween = (record, user, from, to) => visitsFor(record, user).filter(inRange(from, to));
 
 // One entry per month of the year, January to December, with the counts (zero when there is nothing).
 // A doctor or pharmacy with several visits in one month counts once in that month.
@@ -57,10 +61,10 @@ router.get('/months', validate({ query: monthsQuery }), async (req, res) => {
 
   // { "2026-10": 3, … } for one model, by the month in Dhaka time.
   async function countByMonth(Model) {
-    const records = await Model.find(withVisitsBetween(req.user, start, end)).select(`status visitDate visitEndDate ${HISTORY}`).lean();
+    const records = await Model.find(withVisitsBetween(req.user, start, end)).select(`status visitDate visitEndDate ${HISTORY} ${PEOPLE_FIELDS}`).lean();
     const counts = {};
     for (const record of records) {
-      const months = new Set(visitsBetween(record, start, end).map(({ visitDate }) => dhakaDay(visitDate).slice(0, 7)));
+      const months = new Set(visitsBetween(record, req.user, start, end).map(({ visitDate }) => dhakaDay(visitDate).slice(0, 7)));
       for (const month of months) counts[month] = (counts[month] ?? 0) + 1;
     }
     return counts;
@@ -85,20 +89,21 @@ router.get('/', validate({ query: rangeQuery }), async (req, res) => {
   ]);
 
   const items = [
-    ...doctors.flatMap((doctor) => calendarItems('doctor', doctor, doctor.chamberName || doctor.address, from, to)),
-    ...pharmacies.flatMap((pharmacy) => calendarItems('pharmacy', pharmacy, pharmacy.name, from, to)),
+    ...doctors.flatMap((doctor) => calendarItems('doctor', doctor, doctor.chamberName || doctor.address, req.user, from, to)),
+    ...pharmacies.flatMap((pharmacy) => calendarItems('pharmacy', pharmacy, pharmacy.name, req.user, from, to)),
   ].sort((a, b) => a.visitDate - b.visitDate);
 
   res.json({ data: items });
 });
 
-// Just what a calendar chip and the day list need, for each of the record's visits in the range.
-function calendarItems(type, record, place, from, to) {
+// Just what a calendar chip and the day list need, for each of the record's visits in the range that
+// this person sees. `assignedTo` is who goes on that visit: the people an admin chose for it (or nobody yet).
+function calendarItems(type, record, place, user, from, to) {
   const id = String(record._id);
   // An earlier visit shows how far the steps were at it; the current one, the checklist as it is now.
-  return calendarVisits(record).filter(inRange(from, to)).map(({ status, visitDate, visitEndDate, steps, current }) => ({
+  return visitsBetween(record, user, from, to).map(({ day, status, visitDate, visitEndDate, steps, current }) => ({
     id,
-    key: `${id}:${dhakaDay(visitDate)}`,
+    key: `${id}:${day}`,
     type,
     name: record.name,
     place,
@@ -111,7 +116,7 @@ function calendarItems(type, record, place, from, to) {
     visitEndDate,
     phone: record.phone,
     createdBy: userRef(record.createdBy),
-    assignedTo: (record.assignedTo ?? []).map(assigneeJson).map(({ id, name }) => ({ id, name })),
+    assignedTo: goingOn(record, day).map(assigneeJson).map(({ id, name }) => ({ id, name })),
   }));
 }
 

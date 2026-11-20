@@ -1,0 +1,20 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/status'
+order: 3300
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitTeam": []
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 Forbidden', () => pm.response.to.have.status(403));
+      pm.test('only an admin chooses who goes', () => pm.expect(pm.response.json().error.message).to.include('Only an admin'));

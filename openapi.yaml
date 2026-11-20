@@ -27,9 +27,11 @@ info:
     **Who sees what.** A marketing user only sees the records they submitted (`createdBy`) or were
     assigned to (`assignedTo`): in the lists, the calendar, single records and status updates.
     Anyone else's record answers `404`, exactly as if it didn't exist. Admins see every record, and
-    only admins assign people (`PUT /doctors/{id}/assignees`), by email address: teammates or anyone
-    outside the team. When the API has email settings, each newly assigned person is emailed the
-    whole form, and everyone assigned is emailed again whenever the form is edited.
+    only admins assign people, by email address (teammates or anyone outside the team): to the
+    onboarding team (`PUT /doctors/{id}/assignees`, no email) and to the visits they go on
+    (`PUT /doctors/{id}/visits/{day}/assignees`). When the API has email settings, each person newly
+    going on a visit is emailed the visit and the whole form (not for a visit that is over), and the
+    onboarding team is emailed whenever the form is edited.
 
     **Records.** A record is one filled-in onboarding form: a doctor (`/doctors`) or a pharmacy
     (`/pharmacies`). Both have the same endpoints. Every record has a `visitDate`, which puts it on
@@ -683,10 +685,15 @@ paths:
         for it to show: a new status, visit date or end time, a note, or a new count of implementation
         steps done. Changing only the steps' titles or the days they were done adds no entry.
 
-        **Emails.** When the status, the visit date or the end time changes, everyone assigned to
-        the form is emailed the update (the new status and the one before, the visit, the note, then
-        the whole form), except the person who made it. A note or the steps alone send no email.
+        **Emails.** When the status, the visit date or the end time changes, the onboarding team and
+        whoever goes on this visit are emailed the update (the new status and the one before, the
+        visit, who goes, the note, then the whole form), except the person who made it. Otherwise only
+        the people newly going on the visit (`visitTeam`) are emailed. A note or the steps alone send
+        no email, and nobody is emailed about a visit that is over (entered after the fact).
         `meta.email` says who was emailed and who wasn't.
+
+        **Who goes.** An admin can send `visitTeam`: the people going on the visit this update sets
+        (see `PUT /doctors/{id}/visits/{day}/assignees`). Left out, a rescheduled visit keeps who goes.
 
         **End time.** `visitEndDate` is when the visit ends: optional, later than the start, on the
         same day in Dhaka (otherwise `400`, naming `visitEndDate`). Send `null` for no end time.
@@ -734,8 +741,9 @@ paths:
         assignee who only gets the emails, under the `name` given. Assigning isn't an update of the
         onboarding, so it adds nothing to `history`.
 
-        Each newly assigned person is emailed the whole form, when the API has SMTP settings.
-        `meta.email` says whether that worked; the assignment is saved either way.
+        Being on the onboarding team doesn't make anyone go on a visit: that is chosen per visit
+        (`PUT /doctors/{id}/visits/{day}/assignees`). So joining the team sends no email, and
+        `meta.email` reports nobody.
       requestBody:
         required: true
         content:
@@ -749,6 +757,63 @@ paths:
       responses:
         '200':
           description: The doctor, with the new assignees.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DoctorResponse'
+                  - type: object
+                    required: [meta]
+                    properties:
+                      meta:
+                        type: object
+                        required: [email]
+                        properties:
+                          email:
+                            $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}/visits/{day}/assignees:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+      - $ref: '#/components/parameters/VisitDay'
+    put:
+      tags: [Doctors]
+      operationId: assignDoctorVisit
+      summary: Set who goes on one visit (admin)
+      description: |
+        "Assign for this visit" in the details. Different people can go on each visit of an onboarding
+        (for example each day of an implementation): this saves who goes on the visit of `day`, which
+        must be one of the doctor's visits (otherwise `404`). The list works like
+        `PUT /doctors/{id}/assignees`. Only these people go (the onboarding team doesn't go by itself);
+        an empty list means nobody goes.
+
+        A teammate who goes on a visit sees the doctor and can update it, and on the calendar sees only
+        the visits they go on (unless they are on the onboarding team too). When a visit is rescheduled
+        to another day, who goes moves with it. Each person newly going gets an email with the visit and
+        the whole form, unless the visit is over; `meta.email` says whether that worked. Nothing is
+        added to `history`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssigneesRequest'
+            example:
+              assignees:
+                - { email: sumi@pharmaz247.com }
+      responses:
+        '200':
+          description: The doctor, with who goes on that visit in `visitTeams` and `visits`.
           content:
             application/json:
               schema:
@@ -1037,8 +1102,9 @@ paths:
         assignee who only gets the emails, under the `name` given. Assigning isn't an update of the
         onboarding, so it adds nothing to `history`.
 
-        Each newly assigned person is emailed the whole form, when the API has SMTP settings.
-        `meta.email` says whether that worked; the assignment is saved either way.
+        Being on the onboarding team doesn't make anyone go on a visit: that is chosen per visit
+        (`PUT /doctors/{id}/visits/{day}/assignees`). So joining the team sends no email, and
+        `meta.email` reports nobody.
       requestBody:
         required: true
         content:
@@ -1052,6 +1118,49 @@ paths:
       responses:
         '200':
           description: The pharmacy, with the new assignees.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PharmacyResponse'
+                  - type: object
+                    required: [meta]
+                    properties:
+                      meta:
+                        type: object
+                        required: [email]
+                        properties:
+                          email:
+                            $ref: '#/components/schemas/EmailReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pharmacies/{id}/visits/{day}/assignees:
+    parameters:
+      - $ref: '#/components/parameters/RecordId'
+      - $ref: '#/components/parameters/VisitDay'
+    put:
+      tags: [Pharmacies]
+      operationId: assignPharmacyVisit
+      summary: Set who goes on one visit (admin)
+      description: Works exactly like `PUT /doctors/{id}/visits/{day}/assignees`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssigneesRequest'
+      responses:
+        '200':
+          description: The pharmacy, with who goes on that visit in `visitTeams` and `visits`.
           content:
             application/json:
               schema:
@@ -1508,6 +1617,14 @@ components:
       schema:
         $ref: '#/components/schemas/ObjectId'
       example: '6717b2e4c2b1e45d8a0f2b10'
+    VisitDay:
+      name: day
+      in: path
+      required: true
+      description: The visit, named by its day in Dhaka (the record has at most one visit a day).
+      schema:
+        $ref: '#/components/schemas/Day'
+      example: '2026-11-17'
     UpdateAt:
       name: at
       in: path
@@ -2012,19 +2129,61 @@ components:
       properties:
         assignees:
           type: array
-          description: The whole list of assigned people. A teammate's address links the form to their account (their `name` is ignored, the account's is used); any other address only gets the emails, under the `name` given. An empty list unassigns everyone.
+          description: The whole list of assigned people. A teammate's address links the form to their account (their `name` is ignored, the account's is used); any other address only gets the emails, under the `name` given. An empty list unassigns everyone (for a visit, nobody goes).
           maxItems: 20
           items:
-            type: object
-            required: [email]
-            properties:
-              email:
-                type: string
-                format: email
-              name:
-                type: string
-                maxLength: 80
-                description: For an outside address. Optional; the address itself is shown when there is none.
+            $ref: '#/components/schemas/AssigneeInput'
+    AssigneeInput:
+      type: object
+      description: One person to assign, by email address.
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          maxLength: 80
+          description: For an outside address. Optional; the address itself is shown when there is none.
+    VisitTeam:
+      type: object
+      description: Who goes on one visit, when an admin chose people for it.
+      required: [day, assignedTo]
+      properties:
+        day:
+          $ref: '#/components/schemas/Day'
+        assignedTo:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignee'
+    RecordVisit:
+      type: object
+      description: One of the record's visits on the calendar, with who goes on it.
+      required: [day, status, visitDate, visitEndDate, steps, current, assignedTo]
+      properties:
+        day:
+          $ref: '#/components/schemas/Day'
+        status:
+          $ref: '#/components/schemas/OnboardingStatus'
+        visitDate:
+          $ref: '#/components/schemas/DateTime'
+        visitEndDate:
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+        steps:
+          description: How far the implementation steps were at this visit (now, for the current one), or `null`.
+          anyOf:
+            - $ref: '#/components/schemas/StepProgress'
+            - type: 'null'
+        current:
+          type: boolean
+          description: True for the visit where the onboarding stands now.
+        assignedTo:
+          type: array
+          description: Who goes on this visit (only the people an admin chose for it; empty until then).
+          items:
+            $ref: '#/components/schemas/Assignee'
     EmailReport:
       type: object
       description: What happened to the emails (assigning, an edited form, a status update, a deleted update).
@@ -2466,7 +2625,7 @@ components:
     RecordBase:
       type: object
       description: The fields every record has.
-      required: [id, type, name, phone, email, address, visitDate, status, notes, implementationSteps, history, createdBy, assignedTo, createdAt, updatedAt]
+      required: [id, type, name, phone, email, address, visitDate, status, notes, implementationSteps, history, createdBy, assignedTo, visitTeams, visits, createdAt, updatedAt]
       properties:
         id:
           $ref: '#/components/schemas/ObjectId'
@@ -2512,10 +2671,20 @@ components:
           description: The marketing person who submitted the form, with their phone number. They, the assigned teammates and the admins can see the form.
         assignedTo:
           type: array
-          description: "The people an admin assigned to this form (see `PUT /doctors/{id}/assignees`): teammates, who see and can update it, and outside email addresses, who only get the emails."
+          description: "The onboarding team: the people an admin assigned to this form (see `PUT /doctors/{id}/assignees`): teammates, who see and can update it, and outside email addresses, who only get the emails. Being on the team doesn't make anyone go on a visit (see `visits`)."
           maxItems: 20
           items:
             $ref: '#/components/schemas/Assignee'
+        visitTeams:
+          type: array
+          description: "The visits an admin chose other people for (see `PUT /doctors/{id}/visits/{day}/assignees`), by day. A teammate here sees the form, and on the calendar only the visits they go on."
+          items:
+            $ref: '#/components/schemas/VisitTeam'
+        visits:
+          type: array
+          description: The record's visits on the calendar, oldest first, each with who goes on it.
+          items:
+            $ref: '#/components/schemas/RecordVisit'
         createdAt:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
@@ -2741,6 +2910,15 @@ components:
           maxItems: 20
           items:
             $ref: '#/components/schemas/ImplementationStepInput'
+        visitTeam:
+          type: array
+          description: |
+            Admins only (otherwise `403`). Who goes on the visit this update sets, by email address, like
+            `PUT /doctors/{id}/visits/{day}/assignees`; an empty list means nobody goes. Left
+            out, a rescheduled visit keeps who goes, and nobody is chosen for a new visit.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AssigneeInput'
     RecordListMeta:
       allOf:
         - $ref: '#/components/schemas/PageMeta'
@@ -2797,7 +2975,9 @@ components:
     # ---------- Calendar ----------
     CalendarItem:
       type: object
-      description: One visit on the calendar. A record with several visits has one item for each.
+      description: |
+        One visit on the calendar. A record with several visits has one item for each. Someone who only
+        goes on some visits of an onboarding (chosen for them, not on its onboarding team) gets only those.
       required: [id, key, type, name, place, address, status, current, now, steps, visitDate, visitEndDate, phone, createdBy, assignedTo]
       properties:
         id:
@@ -2863,7 +3043,7 @@ components:
             - type: 'null'
         assignedTo:
           type: array
-          description: The teammates assigned to this form.
+          description: Who goes on this visit (the people an admin chose for it; empty until then). Someone outside the team has a `null` id.
           items:
             $ref: '#/components/schemas/UserRef'
     MonthCount:

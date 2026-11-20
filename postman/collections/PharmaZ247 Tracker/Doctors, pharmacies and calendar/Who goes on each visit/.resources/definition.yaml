@@ -1,0 +1,8 @@
+$kind: collection
+description: |-
+  Each visit of an onboarding can have its own people ("who goes"), saved by its day; a visit without
+  them is the onboarding team's. Only an admin chooses. Someone only on a visit's team sees the
+  onboarding, but on the calendar only the visits they go on. A rescheduled visit keeps who goes, and
+  an empty list gives a visit back to the onboarding team. The field marketer is signed in at the
+  start and again at the end.
+order: 3900

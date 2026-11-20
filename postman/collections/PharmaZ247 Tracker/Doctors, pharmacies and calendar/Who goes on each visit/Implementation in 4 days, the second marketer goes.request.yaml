@@ -1,0 +1,39 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/status'
+order: 2200
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitDate": "{{teamSecondDate}}",
+      "visitTeam": [{ "email": "{{otherUserEmail}}" }]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      const [setup = {}, implementation = {}] = pharmacy.visits || [];
+      pm.test('two visits: nobody was chosen for the setup one', () => {
+        pm.expect(pharmacy.visits).to.have.lengthOf(2);
+        pm.expect(setup.day).to.eql(pm.collectionVariables.get('teamFirstDay'));
+        pm.expect(setup.assignedTo).to.eql([]);
+      });
+      pm.test('the second marketer goes on the implementation visit, saved by its day', () => {
+        pm.expect(implementation.day).to.eql(pm.collectionVariables.get('teamSecondDay'));
+        pm.expect(implementation.assignedTo).to.have.lengthOf(1);
+        pm.expect(implementation.assignedTo[0]).to.include({ id: pm.collectionVariables.get('otherUserId'), name: 'Second QA Marketer', teammate: true });
+        pm.expect(pharmacy.visitTeams.map((team) => team.day)).to.eql([pm.collectionVariables.get('teamSecondDay')]);
+      });
+      pm.test('the onboarding team stays as it was', () => {
+        pm.expect(pharmacy.assignedTo.map((person) => person.email)).to.eql([pm.collectionVariables.get('fieldUserEmail')]);
+      });
+      pm.test('a new status: the onboarding team and whoever goes are emailed (no SMTP in the tests)', () => {
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

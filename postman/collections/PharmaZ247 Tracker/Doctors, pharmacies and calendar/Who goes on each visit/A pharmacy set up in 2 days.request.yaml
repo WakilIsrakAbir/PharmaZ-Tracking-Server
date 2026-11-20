@@ -1,0 +1,47 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/pharmacies'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Team Visits Pharmacy",
+      "status": "setup",
+      "visitDate": "{{teamFirstDate}}"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Visits 2, 4 and 5 days from now at 05:00 UTC (11:00 in Dhaka, so the day is the same), and a
+      // calendar range from today for eight days.
+      const at = (days) => {
+        const day = new Date();
+        day.setUTCDate(day.getUTCDate() + days);
+        day.setUTCHours(5, 0, 0, 0);
+        return day.toISOString();
+      };
+      for (const [name, days] of [['First', 2], ['Second', 4], ['Moved', 5]]) {
+        pm.collectionVariables.set(`team${name}Date`, at(days));
+        pm.collectionVariables.set(`team${name}Day`, at(days).slice(0, 10));
+      }
+      const from = new Date();
+      from.setUTCHours(0, 0, 0, 0);
+      pm.collectionVariables.set('teamFrom', from.toISOString());
+      pm.collectionVariables.set('teamTo', new Date(from.getTime() + 8 * 24 * 3600 * 1000).toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const pharmacy = pm.response.json().data || {};
+      if (pharmacy.id) pm.collectionVariables.set('teamPharmacyId', pharmacy.id);
+      pm.test('one visit, with nobody going yet', () => {
+        pm.expect(pharmacy.visits).to.eql([
+          { day: pm.collectionVariables.get('teamFirstDay'), status: 'setup', visitDate: pm.collectionVariables.get('teamFirstDate'), visitEndDate: null, steps: null, current: true, assignedTo: [] },
+        ]);
+        pm.expect(pharmacy.visitTeams).to.eql([]);
+      });

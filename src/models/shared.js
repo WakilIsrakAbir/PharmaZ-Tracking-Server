@@ -59,6 +59,16 @@ const assigneeSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// Who goes on one visit, chosen by an admin: the visit is named by its day in Dhaka ("2026-11-17"),
+// as on the calendar (one visit a day).
+const visitTeamSchema = new mongoose.Schema(
+  {
+    day: { type: String, required: true },
+    assignedTo: { type: [assigneeSchema], default: [] },
+  },
+  { _id: false },
+);
+
 export const trackingFields = {
   visitDate: { type: Date, required: true, index: true },        // when the visit happens (it starts)
   visitEndDate: { type: Date, default: null },                   // when it ends: optional, later the same day
@@ -69,27 +79,78 @@ export const trackingFields = {
   // Deleted updates (never sent by the API; read it with .select('+removedHistory')).
   removedHistory: { type: [removedEntrySchema], default: [], select: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true }, // who submitted it
-  // Who an admin assigned to this record. A teammate (`user` set) sees and can update it, like the
-  // submitter; an outside email address only gets the emails.
+  // The onboarding team: who an admin assigned to this record. A teammate (`user` set) sees it on
+  // the calendar and in the lists and can update it, like the submitter; an outside email address
+  // only gets the emails. Being on the team doesn't make anyone go on a visit (see visitTeams).
   assignedTo: { type: [assigneeSchema], default: [] },
+  // Who goes on each visit: only the people an admin chose for it (see goingOn). A teammate here
+  // sees the onboarding, and on the calendar only the visits they go on.
+  visitTeams: { type: [visitTeamSchema], default: [] },
 };
 
 // What the API sends: `id`, the `type`, each assignee as { id, name, email, phone, teammate }
-// (populate assignedTo.user first; see PEOPLE in routes/records.js), and the history's updates
-// (without old "Assigned to …" lines, see statusHistory). Deleted updates are never sent.
+// (populate assignedTo.user and visitTeams.assignedTo.user first; see PEOPLE in routes/records.js),
+// the history's updates (without old "Assigned to …" lines, see statusHistory), and `visits`: the
+// visits on the calendar, oldest first, each with who goes ({ day, status, visitDate, visitEndDate,
+// steps, current, assignedTo }; nobody until an admin chooses). Deleted updates are never sent.
 export const recordOptions = (type) => ({
   timestamps: true,
   toJSON: {
     versionKey: false,
-    transform: (doc, { _id, assignedTo = [], history = [], removedHistory, ...record }) => ({
-      id: String(_id),
-      type,
-      ...record,
-      history: statusHistory(history),
-      assignedTo: assignedTo.map(assigneeJson),
-    }),
+    transform: (doc, { _id, assignedTo = [], visitTeams = [], history = [], removedHistory, ...record }) => {
+      const team = assignedTo.map(assigneeJson);
+      const teams = new Map(visitTeams.map((entry) => [entry.day, entry.assignedTo.map(assigneeJson)]));
+      return {
+        id: String(_id),
+        type,
+        ...record,
+        history: statusHistory(history),
+        assignedTo: team,
+        visitTeams: [...teams].map(([day, people]) => ({ day, assignedTo: people })),
+        visits: calendarVisits(doc).map(({ status, visitDate, visitEndDate, steps, current }) => {
+          const day = dhakaDay(visitDate);
+          const progress = steps ? { done: steps.done, total: steps.total } : null;
+          return { day, status, visitDate, visitEndDate, steps: progress, current, assignedTo: teams.get(day) ?? [] };
+        }),
+      };
+    },
   },
 });
+
+// Who goes on the visit of `day`: the people an admin chose for it, or nobody yet. The stored
+// assignees (populate them first to read names).
+export const goingOn = (record, day) => (record.visitTeams ?? []).find((team) => team.day === day)?.assignedTo ?? [];
+
+// Whether a visit is over: its end has passed (its start, when it has no end time). Telling anyone
+// about a visit that is over is no use, so nobody is emailed about one.
+export const isOver = ({ visitDate, visitEndDate }) => new Date(visitEndDate ?? visitDate) < new Date();
+
+// The people to tell about a change: the onboarding team and whoever goes on the visits on `days`,
+// each once (by email), as { id, name, email, phone, teammate }, without `except` (who did it).
+export function peopleToTell(record, days, except) {
+  const people = new Map();
+  for (const person of [record.assignedTo ?? [], ...days.filter(Boolean).map((day) => goingOn(record, day))].flat()) {
+    const json = assigneeJson(person);
+    if (json.email !== except?.email) people.set(json.email, json);
+  }
+  return [...people.values()];
+}
+
+// Whether this person sees every visit of a record: admins, whoever submitted it, and the onboarding
+// team. Someone only on a visit's team sees just the visits they go on (see visitsFor).
+export function seesEveryVisit(record, user) {
+  const me = String(user._id);
+  const idOf = (person) => String(person?._id ?? person ?? '');
+  return user.role === 'admin' || idOf(record.createdBy) === me || (record.assignedTo ?? []).some((person) => idOf(person.user) === me);
+}
+
+// The visits of a record this person sees on the calendar (calendarVisits, each with its day).
+export function visitsFor(record, user) {
+  const visits = calendarVisits(record).map((visit) => ({ ...visit, day: dhakaDay(visit.visitDate) }));
+  if (seesEveryVisit(record, user)) return visits;
+  const me = String(user._id);
+  return visits.filter(({ day }) => goingOn(record, day).some((person) => String(person.user?._id ?? person.user ?? '') === me));
+}
 
 // Assigning people used to add a line to the history ("Assigned to Rafi", "No longer assigned: Sumi")
 // that repeated the status and visit of the update before it. Such a line isn't an update of the
@@ -141,9 +202,11 @@ export function checkVisitEnd({ visitDate, visitEndDate }, ctx) {
 }
 
 // Who may see a record: admins see every form; marketing people the forms they submitted or were
-// assigned to. It's a MongoDB filter, used like this: Doctor.find({ ...visibleTo(req.user), status: 'setup' })
+// assigned to (to the onboarding, or to one of its visits). It's a MongoDB filter, used like this:
+// Doctor.find({ ...visibleTo(req.user), status: 'setup' })
 // To combine it with another filter that also has an $or (such as a search), use allOf().
-export const visibleTo = (user) => (user.role === 'admin' ? {} : { $or: [{ createdBy: user._id }, { 'assignedTo.user': user._id }] });
+export const visibleTo = (user) =>
+  user.role === 'admin' ? {} : { $or: [{ createdBy: user._id }, { 'assignedTo.user': user._id }, { 'visitTeams.assignedTo.user': user._id }] };
 
 // Several filters that must all match, as one MongoDB filter. Empty filters are left out.
 export function allOf(...filters) {

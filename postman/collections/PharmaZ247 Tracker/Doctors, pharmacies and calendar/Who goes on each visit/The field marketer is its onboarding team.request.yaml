@@ -1,0 +1,26 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/assignees'
+order: 2100
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "assignees": [{ "email": "{{fieldUserEmail}}" }]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      pm.test('the team does not go on the visit by itself: nobody goes until an admin chooses', () => {
+        pm.expect(pharmacy.assignedTo.map((person) => person.name)).to.eql([pm.collectionVariables.get('fieldUserName')]);
+        pm.expect(pharmacy.visits[0].assignedTo).to.eql([]);
+      });
+      pm.test('joining the onboarding team sends no email', () => {
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

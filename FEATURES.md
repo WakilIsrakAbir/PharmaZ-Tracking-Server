@@ -68,7 +68,7 @@ Opens beside the calendar, or as a full page from the Doctors / Pharmacies lists
 
 **Details** (read only)
 - Name, type and status; BMDC number (doctor) or owner's name (pharmacy).
-- Right under the name: **Submitted by** (who entered it, with phone and date) and **Assigned to** (who the admin sent). Admins have the **Assign** button here, beside the name.
+- Right under the name: **Who goes** on the visit opened from the calendar, then the **Onboarding team** (who the admin assigned). Admins have the **Onboarding team** button beside the name. Who submitted the form, and when, is the first line of the history ("Form submitted by …").
 - Date and time of the visit.
 - Location, with a one-tap **Open in Google Maps** link.
 - Phone, with **Call** and **WhatsApp** buttons; email.
@@ -106,13 +106,20 @@ Every status change is written to the onboarding's history, with who made it and
 
 This is the admin's tool for planning the team's visits.
 
-- Only an admin can assign. The **Assign** button opens a list of teammates to tick, plus a place to add **anyone outside the team** by name and email address (a partner, a senior colleague). The name is saved and shown wherever the assigned people are listed.
-- A **teammate** who is assigned sees the onboarding on their own calendar and in their lists, and can update it after the visit.
-- An **outside email address** gets no access to the tracker; that person only receives the emails.
+- Only an admin can assign, at two levels. Both dialogs list the teammates to tick, plus a place to add **anyone outside the team** by name and email address (a partner, a senior colleague). The name is saved and shown wherever the assigned people are listed.
+- **Onboarding team** (the button beside the name in the details): the people responsible for the onboarding. A **teammate** on it sees the onboarding on their calendar and in their lists and can update it; an **outside email address** gets no access, only the emails about changes. Joining the team sends **no email** and doesn't make anyone go on a visit.
+- **Who goes on each visit** (20 Nov 2026): only the people an admin chooses for that visit go on it, saved by the visit's day (for example a different person each day of an implementation). Nobody goes until chosen:
+  - **Who goes** at the top of a visit's details (opened from the calendar) lists who goes on that visit, with **Assign for this visit** (or **Change**). The dialog says which visit it is, lists the onboarding team first (marked *Team*, including anyone on it from outside the team, so they can be ticked one by one) and has **Tick the onboarding team**. Someone outside the team who goes on a visit gets the email only (no account, so no calendar).
+  - In **Update after each visit**, admins have a **Who goes** field for the visit being saved. It starts with whoever goes on the current visit, so a rescheduled visit keeps them; change it when other people go on the next visit.
+  - The full page of an onboarding lists every **visit** with who goes on it, each with **Assign**.
+  - The day list and the chip's tooltip on the calendar say who goes on that visit.
+  - A teammate chosen only for a visit can open and update the onboarding, but sees **only the visits they go on** on their calendar. The onboarding team sees every visit.
+  - A visit rescheduled to another day keeps who goes. Choosing who goes adds nothing to the history.
+  - **Emails:** each person newly going on a visit gets "You're going: … · Tue 17 Nov, 10:00 AM" with the whole form. A new status or visit time is emailed to the onboarding team and to whoever goes on that visit (the email says who goes). **Nobody is emailed about a visit that is over** (its time has passed), whether someone is chosen for it or it is updated after the fact.
 - Assignments can be changed at any time: add someone, remove someone, or hand an onboarding over when a person leaves. Assigning isn't an update of the onboarding, so the history shows only the updates (older "Assigned to …" lines are left out, and don't count on the calendar).
-- **What the assigned person receives by email:** the whole form (every field, the status, the visit date and time, the address with a map link, the phone, the notes, the steps), who entered it, who assigned them, and an *Open in the tracker* button, which opens the live tracker's dashboard on that visit (whoever isn't signed in signs in first and lands right there; set APP_URL on the server to the web app's public address). Replies go straight to the admin.
-- **When the form is edited**, everyone assigned receives the new version by email, so nobody travels with old information.
-- **When the status or the visit changes** (Save update), everyone assigned receives an email that starts with what changed: "Status: Setup (was Account Creation)", the visit ("Fri, 6 Nov 2026, 10:00 AM – 11:30 AM") and the note, followed by the whole form. The person who made the update is not emailed, and a note or the steps alone send no email. After saving, the app says who was emailed (in red if an email couldn't be sent).
+- **What the person going on a visit receives by email:** the whole form (every field, the status, the visit date and time, the address with a map link, the phone, the notes, the steps), who entered it, who assigned them, and an *Open in the tracker* button, which opens the live tracker's dashboard on that visit (whoever isn't signed in signs in first and lands right there; set APP_URL on the server to the web app's public address). Replies go straight to the admin.
+- **When the form is edited**, the onboarding team and whoever goes on the current visit receive the new version by email, so nobody travels with old information.
+- **When the status or the visit changes** (Save update), the onboarding team and whoever goes on that visit receive an email that starts with what changed: "Status: Setup (was Account Creation)", the visit ("Fri, 6 Nov 2026, 10:00 AM – 11:30 AM") and the note, followed by the whole form. The person who made the update is not emailed, and a note or the steps alone send no email. After saving, the app says who was emailed (in red if an email couldn't be sent).
 - **Clear feedback after Save.** A green message says who is assigned now and who was emailed. A **red message with the reason** appears when something didn't go through: an outside address that isn't an email address (nothing is saved), the server refusing the save, email not being set up on the server, or the mail server refusing to send to someone (that person stays assigned). An outside person typed in but not yet added with the **Add** button is added on Save, so they are never quietly left out.
 - *"Sent" means the mail server took the email.* Whether it lands in the inbox or in spam is decided afterwards by the recipient's mail service (for example Microsoft 365 at a company domain), which the tracker can't see.
 

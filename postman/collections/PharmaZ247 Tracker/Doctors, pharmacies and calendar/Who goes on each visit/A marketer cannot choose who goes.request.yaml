@@ -1,0 +1,19 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/pharmacies/{{pharmacyId}}/visits/2026-01-01/assignees'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "assignees": []
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('403 for a marketer', () => pm.response.to.have.status(403));
+      pm.test('FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));

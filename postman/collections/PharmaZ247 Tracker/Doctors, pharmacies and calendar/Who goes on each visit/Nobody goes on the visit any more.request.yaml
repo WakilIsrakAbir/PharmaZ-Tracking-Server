@@ -1,0 +1,29 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/status'
+order: 5100
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitDate": "{{teamMovedDate}}",
+      "visitTeam": []
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      const current = (pharmacy.visits || []).find((visit) => visit.current) || {};
+      pm.test('an empty list: nobody goes on it now (the onboarding team does not step in)', () => {
+        pm.expect(current.assignedTo).to.eql([]);
+        pm.expect(pharmacy.visitTeams.map((team) => team.day)).to.eql([pm.collectionVariables.get('teamFirstDay')]);
+      });
+      pm.test('only who goes changed, so the history gets no line', () => {
+        pm.expect(pharmacy.history).to.have.lengthOf(Number(pm.collectionVariables.get('teamHistoryLength')));
+      });

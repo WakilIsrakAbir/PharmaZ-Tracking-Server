@@ -1,0 +1,32 @@
+$kind: http-request
+method: PUT
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/visits/{{teamFirstDay}}/assignees'
+order: 2300
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "assignees": [{ "email": "partner@example.com", "name": "Partner Co" }]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const { data: pharmacy = {}, meta = {} } = pm.response.json();
+      const [setup = {}, implementation = {}] = pharmacy.visits || [];
+      pm.test('the partner goes on the setup visit', () => {
+        pm.expect(setup.assignedTo).to.eql([{ id: null, name: 'Partner Co', email: 'partner@example.com', phone: null, teammate: false }]);
+      });
+      pm.test('the other visit keeps its own people', () => {
+        pm.expect(implementation.assignedTo.map((person) => person.name)).to.eql(['Second QA Marketer']);
+      });
+      pm.test('choosing who goes adds nothing to the history', () => {
+        pm.expect(pharmacy.history).to.have.lengthOf(2);
+      });
+      pm.test('reports the email to the people newly going', () => {
+        pm.expect(meta.email).to.eql({ configured: false, sent: [], failed: [] });
+      });

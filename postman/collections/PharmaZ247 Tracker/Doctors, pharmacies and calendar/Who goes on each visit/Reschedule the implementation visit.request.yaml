@@ -1,0 +1,28 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}/status'
+order: 4200
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "visitDate": "{{teamMovedDate}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const pharmacy = pm.response.json().data || {};
+      pm.test('the visit moved a day later, and who goes moved with it', () => {
+        pm.expect(pharmacy.visits.map((visit) => [visit.day, visit.assignedTo.map((person) => person.name)])).to.eql([
+          [pm.collectionVariables.get('teamFirstDay'), ['Partner Co']],
+          [pm.collectionVariables.get('teamMovedDay'), ['Second QA Marketer']],
+        ]);
+        pm.expect(pharmacy.visitTeams.map((team) => team.day).sort()).to.eql([pm.collectionVariables.get('teamFirstDay'), pm.collectionVariables.get('teamMovedDay')]);
+      });
+      pm.collectionVariables.set('teamHistoryLength', (pharmacy.history || []).length);

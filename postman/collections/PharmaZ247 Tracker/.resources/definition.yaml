@@ -141,6 +141,36 @@ variables:
   - key: pastOnlySecondAt
     value: ''
     description: When it was moved to Ongoing (its latest update).
+  - key: teamPharmacyId
+    value: ''
+    description: Set by "A pharmacy set up in 2 days" (Who goes on each visit).
+  - key: teamFirstDate
+    value: ''
+    description: Two days from now at 05:00 UTC, its setup visit; teamFirstDay is that day.
+  - key: teamFirstDay
+    value: ''
+    description: The day of teamFirstDate (YYYY-MM-DD).
+  - key: teamSecondDate
+    value: ''
+    description: Four days from now at 05:00 UTC, its implementation visit.
+  - key: teamSecondDay
+    value: ''
+    description: The day of teamSecondDate.
+  - key: teamMovedDate
+    value: ''
+    description: Five days from now at 05:00 UTC, where the implementation visit is rescheduled.
+  - key: teamMovedDay
+    value: ''
+    description: The day of teamMovedDate.
+  - key: teamFrom
+    value: ''
+    description: Today at 00:00 UTC, for the calendar checks of Who goes on each visit.
+  - key: teamTo
+    value: ''
+    description: Eight days after teamFrom.
+  - key: teamHistoryLength
+    value: ''
+    description: How many lines the team pharmacy's history has after "Reschedule the implementation visit".
   - key: doctorVisitEndDate
     value: ''
     description: An hour after doctorVisitDate, set before "A status update emails everyone assigned".

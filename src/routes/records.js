@@ -12,8 +12,11 @@ import {
   calendarChange,
   calendarVisits,
   countSteps,
+  goingOn,
   isAssignmentLine,
+  isOver,
   optionalMoment,
+  peopleToTell,
   sameMoment,
   statusHistory,
   visibleTo,
@@ -44,7 +47,8 @@ import {
 //   PUT    /:id             save the edited form (everyone assigned is emailed the new version)
 //   PATCH  /:id/status      the status update: new status, visit date and end time, note, implementation
 //                           steps (a new status or visit time is emailed to everyone assigned)
-//   PUT    /:id/assignees   admins only: who is assigned, by email (newly assigned people get an email)
+//   PUT    /:id/assignees   admins only: the onboarding team, by email (newly assigned people get an email)
+//   PUT    /:id/visits/:day/assignees  admins only: who goes on one visit (newly going people get an email)
 //   DELETE /:id/history/:at admins only: delete one update from the history (?dryRun=true says what
 //                           would change); the calendar follows
 //   POST   /:id/history/restore  admins only: "Undo", puts a deleted update back
@@ -76,13 +80,19 @@ const SORTS = {
   updated: { updatedAt: -1, _id: -1 }, // the last changed first
 };
 
-// Only the records of these people: submitted by `createdBy`, assigned to `assignee` (or to no one).
-// The ids come in as text; the aggregation that counts the statuses needs real ObjectIds.
+// Only the records of these people: submitted by `createdBy`, assigned to `assignee` (to the
+// onboarding or to one of its visits), or to no one at all. The ids come in as text; the aggregation
+// that counts the statuses needs real ObjectIds.
 function peopleFilter({ assignee, createdBy }) {
   const filter = {};
   if (createdBy) filter.createdBy = new mongoose.Types.ObjectId(createdBy);
-  if (assignee === 'none') filter.assignedTo = { $size: 0 };
-  else if (assignee) filter['assignedTo.user'] = new mongoose.Types.ObjectId(assignee);
+  if (assignee === 'none') {
+    filter.assignedTo = { $size: 0 };
+    filter['visitTeams.assignedTo.0'] = { $exists: false };
+  } else if (assignee) {
+    const id = new mongoose.Types.ObjectId(assignee);
+    filter.$or = [{ 'assignedTo.user': id }, { 'visitTeams.assignedTo.user': id }];
+  }
   return filter;
 }
 
@@ -107,6 +117,12 @@ const stepsInput = z
     }),
   );
 
+// A whole list of people, by email address. A teammate's address links to their account; any other
+// address only gets the emails, under the `name` given here (optional).
+const assigneeList = z
+  .array(z.object({ email: emailField, name: optionalText(80) }), { error: 'Please send the list of people to assign.' })
+  .max(20, 'Assign 20 people or fewer.');
+
 const statusBody = z.object({
   status: z.enum(STATUSES, { error: STATUS_MESSAGE }),
   visitDate: z.coerce.date({ error: 'Please pick a valid date.' }).optional(),
@@ -114,16 +130,15 @@ const statusBody = z.object({
   visitEndDate: z.preprocess((value) => (value === '' ? null : value), z.coerce.date({ error: 'Please pick a valid end time.' }).nullable().optional()),
   note: optionalText(500),
   implementationSteps: stepsInput.optional(),
+  // Admins only: who goes on the visit this update sets ([] for the onboarding team).
+  visitTeam: assigneeList.optional(),
 });
 
-// The whole list of assigned people, sent each time (an empty list unassigns everyone). A teammate's
-// address links the record to their account; any other address only gets the emails, under the
-// `name` given here (optional).
-const assigneesBody = z.object({
-  assignees: z
-    .array(z.object({ email: emailField, name: optionalText(80) }), { error: 'Please send the list of people to assign.' })
-    .max(20, 'Assign 20 people or fewer.'),
-});
+// The whole list of assigned people, sent each time (an empty list unassigns everyone).
+const assigneesBody = z.object({ assignees: assigneeList });
+
+// One visit of a record, named by its day in Dhaka.
+const visitParams = z.object({ id: objectId, day: dayField });
 
 // An update in the history is named by the moment it was made (its `at`, as the API sends it).
 const historyParams = z.object({ id: objectId, at: z.coerce.date({ error: 'That update is not valid.' }) });
@@ -133,11 +148,12 @@ const restoreBody = z.object({
   removal: z.string({ error: 'Please send the removal id that the delete answered with.' }).regex(/^[a-f\d]{24}$/i, 'That ID is not valid.'),
 });
 
-// Who submitted the form (with their phone, so the team can call them), who is assigned to it,
-// and who made each change.
+// Who submitted the form (with their phone, so the team can call them), who is assigned to it and
+// to each of its visits, and who made each change.
 const PEOPLE = [
   { path: 'createdBy', select: 'name phone role' },
   { path: 'assignedTo.user', select: 'name phone role' },
+  { path: 'visitTeams.assignedTo.user', select: 'name phone role' },
   { path: 'history.by', select: 'name' },
 ];
 
@@ -210,23 +226,27 @@ export function recordRoutes(Model, input) {
       values.visitDate.getTime() !== record.visitDate.getTime() ||
       timeOf(values.visitEndDate) !== timeOf(record.visitEndDate);
 
+    const visitBefore = visitDays(record);
     record.set(values);
     if (moved) {
       record.history.push({ status: values.status, visitDate: values.visitDate, visitEndDate: values.visitEndDate, note: 'Form updated', by: req.user._id });
     }
+    followMovedVisit(record, visitBefore);
     await record.save();
     await record.populate(PEOPLE);
 
-    // Everyone assigned gets the new version of the form (not the person who just edited it).
-    const recipients = record.assignedTo.map(assigneeJson).filter((person) => person.email !== req.user.email);
+    // The onboarding team and whoever goes on the current visit get the new version of the form (not
+    // the person who just edited it).
+    const recipients = peopleToTell(record, [dhakaDay(record.visitDate)], req.user);
     const email = await sendRecordEmails({ record, type: kind, recipients, by: req.user, reason: 'updated' });
     res.json({ data: record, meta: { email } });
   });
 
-  // "Save update" in the details panel.
+  // "Save update" in the details panel. An admin also says who goes on the visit it sets (`visitTeam`).
   router.patch('/:id/status', validate({ params: idParams, body: statusBody }), async (req, res) => {
     const record = await findRecord(req.valid.params.id, req.user);
-    const { status, visitDate = record.visitDate, note, implementationSteps } = req.valid.body;
+    const { status, visitDate = record.visitDate, note, implementationSteps, visitTeam } = req.valid.body;
+    if (visitTeam && req.user.role !== 'admin') throw new ApiError(403, 'Only an admin can choose who goes on a visit.');
     assertVisitNotInPast(req.user, visitDate, record.visitDate);
     // Without `visitEndDate`, the end time stays while the visit keeps its start; a visit that moves
     // to a new start has no end time until one is given.
@@ -241,6 +261,9 @@ export function recordRoutes(Model, input) {
       status !== record.status || visitDate.getTime() !== record.visitDate.getTime() || timeOf(visitEndDate) !== timeOf(record.visitEndDate);
     const previousStatus = record.status;
     const progressBefore = stepProgress(record.status, record.implementationSteps);
+    await record.populate(PEOPLE); // to name who went on the visit until now
+    const teamBefore = goingOn(record, dhakaDay(record.visitDate)).map(assigneeJson);
+    const visitBefore = visitDays(record);
 
     record.status = status;
     record.visitDate = visitDate;
@@ -249,45 +272,66 @@ export function recordRoutes(Model, input) {
 
     // The history gets a line for what it shows: a new status, visit or end time, a note, or a new
     // count of steps done (while in Implementation, the line remembers it). Changing only the steps'
-    // titles or the days they were done adds no line.
+    // titles or the days they were done, or who goes, adds no line.
     const steps = stepProgress(status, record.implementationSteps);
     if (moved || note || !sameProgress(progressBefore, steps)) {
       record.history.push({ status, visitDate, visitEndDate, note, steps, by: req.user._id });
     }
+    // A rescheduled visit keeps who goes; then the admin's choice, if one was sent, for this visit.
+    const day = dhakaDay(visitDate);
+    followMovedVisit(record, visitBefore);
+    if (visitTeam) setVisitTeam(record, day, await resolveAssignees(visitTeam));
     await record.save();
     await record.populate(PEOPLE);
+    const team = goingOn(record, day).map(assigneeJson);
 
-    // `meta.email` says who was emailed (nobody when nothing but a note or the steps changed).
-    const recipients = moved ? record.assignedTo.map(assigneeJson).filter((person) => person.email !== req.user.email) : [];
-    const email = await sendRecordEmails({ record, type: kind, recipients, by: req.user, reason: 'status', change: { previousStatus, note } });
+    // A new status, day or time is emailed to the onboarding team and whoever goes on this visit (not
+    // to the person who made it). Otherwise only the people newly going on this visit are told. A
+    // note or the steps alone email nobody, so inboxes don't fill up, and nobody is emailed about a
+    // visit that is over (entered after the fact). `meta.email` says who was emailed.
+    const visit = { status, visitDate, visitEndDate };
+    let email;
+    if (moved) {
+      const recipients = isOver(visit) ? [] : peopleToTell(record, [day], req.user);
+      email = await sendRecordEmails({ record, type: kind, recipients, by: req.user, reason: 'status', change: { previousStatus, note, team: namesOf(team) } });
+    } else {
+      const added = isOver(visit) ? [] : team.filter((person) => !teamBefore.some((old) => old.email === person.email));
+      email = await sendRecordEmails({ record, type: kind, recipients: added, by: req.user, reason: 'visit', change: { day, visit, team: namesOf(team) } });
+    }
     res.json({ data: record, meta: { email } });
   });
 
-  // "Assign" in the details panel. Any email address can be assigned: a teammate's address links
-  // the record to their account (so they see it), any other address just gets the emails. Each newly
-  // assigned person is emailed the whole form; the answer's `meta.email` says whether those emails
-  // went out. Assigning isn't an update of the onboarding, so it adds nothing to the history.
-  router.put('/:id/assignees', requireAdmin, validate({ params: idParams, body: assigneesBody }), async (req, res) => {
-    const record = await findRecord(req.valid.params.id, req.user);
-    const wanted = new Map(req.valid.body.assignees.map(({ email, name }) => [email, name])); // one entry per address
-    const emails = [...wanted.keys()];
+  // Admins only: who goes on the visit of `day` ("Assign for this visit"): only these people (an
+  // empty list: nobody). The people newly going are emailed the visit and the whole form, unless the
+  // visit is over; `meta.email` says whether that worked. Like assigning, it adds nothing to the history.
+  router.put('/:id/visits/:day/assignees', requireAdmin, validate({ params: visitParams, body: assigneesBody }), async (req, res) => {
+    const { id, day } = req.valid.params;
+    const record = await findRecord(id, req.user);
+    const visit = calendarVisits(record).find(({ visitDate }) => dhakaDay(visitDate) === day);
+    if (!visit) throw new ApiError(404, `This ${kind} has no visit on that day.`);
 
-    // Teammates whose address is in the list (active accounts only; a deactivated one counts as outside).
-    const teammates = await User.find({ email: { $in: emails }, isActive: true }).select('name phone email');
-    const byEmail = new Map(teammates.map((person) => [person.email, person]));
-
-    const before = record.assignedTo.map(assigneeJson);
-    record.assignedTo = emails.map((email) => {
-      const account = byEmail.get(email);
-      return { email, name: account ? '' : wanted.get(email), user: account?._id ?? null };
-    });
     await record.populate(PEOPLE);
-    const after = record.assignedTo.map(assigneeJson);
-
-    const added = after.filter((person) => !before.some((old) => old.email === person.email));
+    const before = goingOn(record, day).map(assigneeJson);
+    setVisitTeam(record, day, await resolveAssignees(req.valid.body.assignees));
+    await record.populate(PEOPLE);
+    const team = goingOn(record, day).map(assigneeJson);
+    const added = isOver(visit) ? [] : team.filter((person) => !before.some((old) => old.email === person.email));
     await record.save();
 
-    const email = await sendRecordEmails({ record, type: kind, recipients: added, by: req.user, reason: 'assigned' });
+    const email = await sendRecordEmails({ record, type: kind, recipients: added, by: req.user, reason: 'visit', change: { day, visit, team: namesOf(team) } });
+    res.json({ data: await record.populate(PEOPLE), meta: { email } });
+  });
+
+  // "Onboarding team" in the details panel. Any email address can be on it: a teammate's address
+  // links the record to their account (so they see it), any other address just gets the emails about
+  // changes. Joining the team doesn't make anyone go on a visit (that is "Who goes", per visit) and
+  // sends no email, so `meta.email` always reports nobody. It adds nothing to the history either.
+  router.put('/:id/assignees', requireAdmin, validate({ params: idParams, body: assigneesBody }), async (req, res) => {
+    const record = await findRecord(req.valid.params.id, req.user);
+    record.assignedTo = await resolveAssignees(req.valid.body.assignees);
+    await record.save();
+
+    const email = await sendRecordEmails({ record, type: kind, recipients: [], by: req.user, reason: 'assigned' }); // nobody: see above
     res.json({ data: await record.populate(PEOPLE), meta: { email } });
   });
 
@@ -372,6 +416,50 @@ export function recordRoutes(Model, input) {
 const timeOf = (date) => date?.getTime() ?? null;
 
 // ---------------------------------------------------------------------------
+// Who goes on each visit
+// ---------------------------------------------------------------------------
+
+// People by email address → the stored assignees: an active teammate's address links to their
+// account (their name comes from it); any other address is kept with the name given.
+async function resolveAssignees(list) {
+  const wanted = new Map(list.map(({ email, name }) => [email, name])); // one entry per address
+  const emails = [...wanted.keys()];
+  // Teammates whose address is in the list (active accounts only; a deactivated one counts as outside).
+  const teammates = await User.find({ email: { $in: emails }, isActive: true }).select('name phone email');
+  const byEmail = new Map(teammates.map((person) => [person.email, person]));
+  return emails.map((email) => {
+    const account = byEmail.get(email);
+    return { email, name: account ? '' : wanted.get(email), user: account?._id ?? null };
+  });
+}
+
+// Who goes on the visit of `day`: these people, or (none given) the onboarding team again.
+function setVisitTeam(record, day, assignees) {
+  const others = record.visitTeams.filter((team) => team.day !== day);
+  record.visitTeams = assignees.length ? [...others, { day, assignedTo: assignees }] : others;
+}
+
+// The record's current visit day and the days it has visits on, before a change (see followMovedVisit).
+const visitDays = (record) => ({ day: dhakaDay(record.visitDate), days: new Set(calendarVisits(record).map(({ visitDate }) => dhakaDay(visitDate))) });
+
+// After a change: when the current visit moved to another day (rescheduled, so its old day is off the
+// calendar), whoever was going on it goes on the new day, unless that day already has its own team.
+function followMovedVisit(record, before) {
+  const day = dhakaDay(record.visitDate);
+  if (day === before.day || !before.days.has(before.day)) return;
+  const stillThere = calendarVisits(record).some(({ visitDate }) => dhakaDay(visitDate) === before.day);
+  const moving = record.visitTeams.find((team) => team.day === before.day);
+  if (stillThere || !moving) return;
+  const hasOwn = record.visitTeams.some((team) => team.day === day);
+  record.visitTeams = record.visitTeams.flatMap((team) => {
+    if (team.day !== before.day) return [team];
+    return hasOwn ? [] : [{ day, assignedTo: team.assignedTo }];
+  });
+}
+
+const namesOf = (people) => people.map((person) => person.name);
+
+// ---------------------------------------------------------------------------
 // Deleting an update from the history, and putting it back
 // ---------------------------------------------------------------------------
 
@@ -420,9 +508,10 @@ function describeChange(record, before, update, user) {
     before.state.status !== after.status ||
     !sameMoment(before.state.visitDate, after.visitDate) ||
     !sameMoment(before.state.visitEndDate, after.visitEndDate);
+  // The onboarding team, and whoever goes on the visit it stood at and the one it stands at now.
   const recipients =
     changed && (isTodayOrLater(before.state.visitDate) || isTodayOrLater(after.visitDate))
-      ? record.assignedTo.map(assigneeJson).filter((person) => person.email !== user.email)
+      ? peopleToTell(record, [dhakaDay(before.state.visitDate), dhakaDay(after.visitDate)], user)
       : [];
   const by = update.by && update.by.name !== undefined ? { id: String(update.by._id), name: update.by.name } : null;
   return {

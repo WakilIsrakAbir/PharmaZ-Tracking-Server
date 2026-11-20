@@ -5,12 +5,15 @@ import { dhakaDay } from './utils.js';
 
 // Email, over SMTP (Gmail, Google Workspace, Brevo…: the SMTP_* settings in .env decide which).
 // Four kinds, all carrying the whole form:
-//   assigned   "you were assigned to this form", to each newly assigned person
+//   assigned   "you were assigned to this form" (not sent any more: joining the onboarding team sends
+//              no email; people going on a visit get "visit")
 //   updated    "this form was edited", to everyone assigned
 //   status     "the status or the visit changed" (Save update), to everyone assigned: the new status
 //              (and the one before), the visit's start and end, and the note come first
 //   removed    "the latest update was deleted, so the onboarding is back to the one before", to
 //              everyone assigned: where it stands now and what the deleted update said come first
+//   visit      "you're going on this visit", to each person newly going on one visit: the visit's
+//              day and time, its status and who goes come first
 // Without SMTP settings nothing is sent and the API says so in its answer, so it works everywhere.
 
 const STATUS_LABELS = {
@@ -39,10 +42,11 @@ function mailer() {
 // Emails the form to each recipient ({ name, email }). Never throws: the result says who got the
 // email and who didn't, and why not, so the person who acted can be told ("Saved, but the email to
 // Rafi couldn't be sent: the mail server refused the address").
-//   reason  'assigned' | 'updated' | 'status' | 'removed'
+//   reason  'assigned' | 'updated' | 'status' | 'removed' | 'visit'
 //   by      the signed-in user who assigned, edited, updated or deleted (replies go to them)
-//   change  for 'status': { previousStatus, note }; for 'removed': { update } (the deleted update's
-//           status, visitDate and visitEndDate)
+//   change  for 'status': { previousStatus, note, team }; for 'removed': { update } (the deleted
+//           update's status, visitDate and visitEndDate); for 'visit': { day, visit, team } (the
+//           visit's status, visitDate and visitEndDate). `team` is the names of who goes.
 //   → { configured, sent: [names], failed: [{ name, reason }] }
 // "Sent" means the mail server took the email. Whether it lands in the inbox, in spam or bounces is
 // decided later by the recipient's mail service, which the API can't see.
@@ -83,12 +87,12 @@ function reasonFor(error) {
 function recordEmail({ record, type, person, by, reason, change = {} }) {
   const kind = TYPE_LABELS[type];
   const visit = formatVisit(record.visitDate, record.visitEndDate);
-  const link = trackerLink(record, type);
+  const link = trackerLink(record, type, change.day); // a visit's own email opens that day
   const displayName = record.name || `Unnamed ${kind}`;
   const status = STATUS_LABELS[record.status] ?? record.status;
   const steps = record.implementationSteps.map((step) => `${step.done ? '☑' : '☐'} ${step.title}`).join('\n');
   const details = { record, type, kind, displayName, status, visit, steps, by, change, reason };
-  const content = { status: statusUpdate, removed: removedUpdate }[reason] ?? wholeForm;
+  const content = { status: statusUpdate, removed: removedUpdate, visit: visitAssigned }[reason] ?? wholeForm;
   const { intro, subject, rows } = content(details);
   return {
     from: env.EMAIL_FROM,
@@ -133,6 +137,7 @@ function statusUpdate({ record, type, kind, displayName, status, visit, steps, b
     rows: [
       ['Status', before ? `${status} (was ${before})` : status],
       ['Visit', visit],
+      ['Who goes', (change.team ?? []).join(', ')],
       ['Update note', change.note],
       ['Implementation steps', steps],
       ['Updated by', personLine(by)],
@@ -168,11 +173,34 @@ function removedUpdate({ record, type, kind, displayName, status, visit, steps, 
   };
 }
 
-// "Open in the tracker": the dashboard on the visit's day, with this doctor's or pharmacy's details
-// open (like dashboardLink in the web app), at APP_URL, the web app's public address. Someone who
-// isn't signed in is asked to sign in first, and then lands right there.
-function trackerLink(record, type) {
-  const day = dhakaDay(record.visitDate);
+// Someone is now going on one visit (chosen for that visit by an admin): which visit, its status
+// then and who goes come first, then the whole form.
+//   Subject: "You're going: Rahman Pharmacy (Pharmacy) · Tue 17 Nov 2026, 10:00 AM – 12:00 PM"
+function visitAssigned({ record, type, kind, displayName, steps, by, change }) {
+  const { visit, team = [] } = change;
+  const when = formatVisit(visit.visitDate, visit.visitEndDate);
+  const status = STATUS_LABELS[visit.status] ?? visit.status;
+  return {
+    intro: `${by.name} assigned you to the ${status} visit of the ${kind.toLowerCase()} onboarding of ${displayName}, on ${when}.`,
+    subject: `You're going: ${displayName} (${kind}) · ${when}`,
+    rows: [
+      ['Visit', when],
+      ['Status', status],
+      ['Who goes', team.join(', ')],
+      ['Implementation steps', visit.status === 'implementation' ? steps : ''],
+      ['Assigned by', personLine(by)],
+      ...formRows(type, record),
+      ['Notes', record.notes],
+      ['Submitted by', personLine(record.createdBy)],
+    ],
+  };
+}
+
+// "Open in the tracker": the dashboard on the visit's day (or `day`), with this doctor's or pharmacy's
+// details open (like dashboardLink in the web app), at APP_URL, the web app's public address. Someone
+// who isn't signed in is asked to sign in first, and then lands right there.
+function trackerLink(record, type, onDay) {
+  const day = onDay ?? dhakaDay(record.visitDate);
   const query = new URLSearchParams({ month: day.slice(0, 7), day, type, id: String(record._id) });
   return `${env.appUrl}/?${query}`;
 }

@@ -1,0 +1,21 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/calendar?from={{teamFrom}}&to={{teamTo}}'
+order: 4100
+queryParams:
+  - key: from
+    value: '{{teamFrom}}'
+  - key: to
+    value: '{{teamTo}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const visits = (pm.response.json().data || []).filter((item) => item.id === pm.collectionVariables.get('teamPharmacyId'));
+      pm.test('both visits, each with the people going on it', () => {
+        pm.expect(visits.map((visit) => [visit.visitDate, visit.assignedTo.map((person) => person.name)])).to.eql([
+          [pm.collectionVariables.get('teamFirstDate'), ['Partner Co']],
+          [pm.collectionVariables.get('teamSecondDate'), ['Second QA Marketer']],
+        ]);
+      });

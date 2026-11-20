@@ -1,0 +1,18 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/pharmacies?assignee={{otherUserId}}&limit=100'
+order: 2500
+queryParams:
+  - key: assignee
+    value: '{{otherUserId}}'
+  - key: limit
+    value: '100'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      pm.test('the "assigned to" filter also finds the pharmacy where they only go on one visit', () => {
+        const ids = (pm.response.json().data || []).map((pharmacy) => pharmacy.id);
+        pm.expect(ids).to.include(pm.collectionVariables.get('teamPharmacyId'));
+      });

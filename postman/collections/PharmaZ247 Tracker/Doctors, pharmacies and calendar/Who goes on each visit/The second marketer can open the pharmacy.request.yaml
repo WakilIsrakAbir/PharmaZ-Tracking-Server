@@ -1,0 +1,9 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/pharmacies/{{teamPharmacyId}}'
+order: 3200
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK: going on one visit is enough to open and update it', () => pm.response.to.have.status(200));

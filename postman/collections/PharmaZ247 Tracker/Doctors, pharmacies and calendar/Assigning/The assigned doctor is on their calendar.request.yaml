@@ -14,10 +14,11 @@ scripts:
       pm.test('200 OK', () => pm.response.to.have.status(200));
       const items = pm.response.json().data || [];
       const doctor = items.find((item) => item.id === pm.collectionVariables.get('doctorId'));
-      pm.test('shows the assigned doctor, and says who is assigned', () => {
+      pm.test('shows the doctor to someone on its onboarding team', () => {
         pm.expect(doctor, 'doctor').to.be.an('object');
-        pm.expect((doctor.assignedTo || []).map((person) => person.id)).to.eql([pm.collectionVariables.get('otherUserId')]);
-        pm.expect(doctor.assignedTo[0].name).to.eql('Second QA Marketer');
+      });
+      pm.test('nobody goes on the visit until an admin chooses who goes (being on the team is not enough)', () => {
+        pm.expect(doctor.assignedTo).to.eql([]);
       });
       pm.test("still leaves out the field marketer's pharmacy, which isn't assigned to them", () => {
         pm.expect(items.map((item) => item.id)).to.not.include(pm.collectionVariables.get('pharmacyId'));
