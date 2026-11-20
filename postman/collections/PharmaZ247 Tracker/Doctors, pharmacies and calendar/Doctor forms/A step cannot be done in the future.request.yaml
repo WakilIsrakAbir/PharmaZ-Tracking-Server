@@ -1,0 +1,36 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 15600
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "implementationSteps": [
+        { "id": "{{firstStepId}}", "title": "Profile live in the app", "done": true, "doneAt": "{{stepFutureDay}}" },
+        { "id": "{{secondStepId}}", "title": "Train the chamber assistant", "done": true }
+      ]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // Two days from now.
+      const day = new Date();
+      day.setUTCDate(day.getUTCDate() + 2);
+      day.setUTCHours(6, 0, 0, 0);
+      pm.collectionVariables.set('stepFutureDay', day.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('400 Bad Request', () => pm.response.to.have.status(400));
+      pm.test('names the step whose day is wrong', () => {
+        const { error = {} } = pm.response.json();
+        pm.expect(error.code).to.eql('VALIDATION_ERROR');
+        pm.expect(error.fields).to.have.property('implementationSteps.0.doneAt');
+        pm.expect(error.fields['implementationSteps.0.doneAt']).to.include('future');
+      });

@@ -174,6 +174,18 @@ variables:
   - key: firstStepDoneAt
     value: ''
     description: When the first step was ticked off, set by "Track the implementation steps".
+  - key: secondStepDoneAt
+    value: ''
+    description: When the second implementation step was ticked off, set by "Tick off the second step".
+  - key: stepsHistoryLength
+    value: ''
+    description: How many lines the doctor's history has after "Tick off the second step".
+  - key: stepDoneDay
+    value: ''
+    description: Two days ago at 06:00 UTC, the day the first step was really done ("Change the day a step was done").
+  - key: stepFutureDay
+    value: ''
+    description: Two days from now, for a step done in the future (refused).
   - key: tomorrowDay
     value: ''
     description: The Dhaka day of the sample doctor's visit, set before "Doctors visited on one day".

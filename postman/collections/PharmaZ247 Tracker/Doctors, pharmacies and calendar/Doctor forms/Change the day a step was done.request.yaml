@@ -1,0 +1,42 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/doctors/{{doctorId}}/status'
+order: 15500
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "implementation",
+      "implementationSteps": [
+        { "id": "{{firstStepId}}", "title": "Profile live in the app", "done": true, "doneAt": "{{stepDoneDay}}" },
+        { "id": "{{secondStepId}}", "title": "Train the chamber assistant", "done": true }
+      ]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      // The first step was really done two days ago (at noon in Dhaka, 06:00 UTC).
+      const day = new Date();
+      day.setUTCDate(day.getUTCDate() - 2);
+      day.setUTCHours(6, 0, 0, 0);
+      pm.collectionVariables.set('stepDoneDay', day.toISOString());
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const doctor = pm.response.json().data || {};
+      const [first = {}, second = {}] = doctor.implementationSteps || [];
+      pm.test('the first step now has the day it was really done', () => {
+        pm.expect(first.done).to.eql(true);
+        pm.expect(first.doneAt).to.eql(pm.collectionVariables.get('stepDoneDay'));
+      });
+      pm.test('the second step, sent without a day, keeps its own', () => {
+        pm.expect(second.doneAt).to.eql(pm.collectionVariables.get('secondStepDoneAt'));
+      });
+      pm.test('only the days changed, so the history gets no new line', () => {
+        pm.expect(doctor.history).to.have.lengthOf(Number(pm.collectionVariables.get('stepsHistoryLength')));
+      });

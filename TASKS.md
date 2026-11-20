@@ -37,6 +37,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Calendar chips show the doctor's or pharmacy's name instead of the time (the time is in the tooltip and the day list)
 - [x] **Delete an update from the history** (20 Nov 2026, admins): ⋯ → *Delete update…* on any line; a dialog first shows what will change (where the onboarding ends up, what leaves or comes back on the calendar, who is emailed); the calendar follows; **Undo** for 10 seconds puts it back. Deleting the latest update takes the onboarding back to the one before it; everyone assigned is emailed only when that touches today or a later day. An earlier visit opened from the calendar has its lines marked in the history ("Added by mistake? Find it in the history"). The only update can't be deleted
 - [x] The history shows only updates (when each was made, by whom; the newest marked **Now**); assigning no longer adds a line, and older "Assigned to …" lines are left out of the history and the calendar
+- [x] **The day a step was done can be changed** (20 Nov 2026): the date beside a done step opens a date picker (today or earlier; the API refuses a later day). Saving only step days or titles adds no history line and sends no email ("Step dates saved.")
 - [x] **Start and end time** (16 Nov 2026): every visit has a start time and an optional end time, later the same day (the API checks it); shown as "10:00 – 11:30 AM · 1 hr 30 min" in the day list, details, history, lists and emails
 - [x] A time picker instead of the browser's clock: times every 15 minutes, the end time lists only later times with the length of the visit, "No end time"; also for opening hours
 - [x] **Lists fit the screen** (16 Nov 2026): doctors, pharmacies, call log and team show as many rows as fit (measured, again on resize), so the page needs no scrolling; "Auto (N)" under Per page, or 10 / 20 / 50
@@ -103,7 +104,7 @@ What's done and what's next. See [PLAN.md](PLAN.md) for how it works. A box is t
 - [x] Simpler folders: `server/src/{models,routes,middleware}` and flat `client/src/components`
 - [x] Cleanup (21 Oct 2026): unused UI parts, images, settings and code removed; screen files renamed to `.jsx`; the calendar moved from `/calendar` to `/` as the Dashboard; the extra "New form" button removed
 - [x] API contract `openapi.yaml` (passes lint)
-- [x] Postman tests: `npm run test:api` uses a throwaway API and database (167 tests, 868 checks as of 20 Nov 2026)
+- [x] Postman tests: `npm run test:api` uses a throwaway API and database (169 tests, 880 checks as of 20 Nov 2026)
 - [x] Production build and lint pass; the full flow was clicked through in a real browser (Edge, desktop + phone), with no errors and no page wider than a phone
 
 ---

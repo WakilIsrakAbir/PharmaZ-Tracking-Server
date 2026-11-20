@@ -75,7 +75,7 @@ Every status change (from the details panel, or by editing the form) adds an ent
 
 **Implementation in steps.** Going live can take several visits. While a form is in *Implementation*, the status box shows a checklist:
 - add the steps (for example "Train the chamber assistant"), tick each one off when it's done, then **Save update**;
-- a ticked step remembers the day it was done;
+- a ticked step remembers the day it was done (today when ticked); a click on that day changes it to the real day (today or earlier). Changing only the days or the titles adds no history line;
 - the status badge shows the progress, for example *Implementation · 2/4*, in the details, the day list and the lists;
 - each history entry remembers how many steps were done at that moment ("2 of 4 steps done").
 

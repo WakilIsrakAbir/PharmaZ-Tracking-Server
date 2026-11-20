@@ -39,3 +39,5 @@ scripts:
         pm.expect(last.steps).to.eql({ done: 2, total: 2 });
         pm.expect(last.note).to.eql('Assistant trained.');
       });
+      pm.collectionVariables.set('secondStepDoneAt', second.doneAt || '');
+      pm.collectionVariables.set('stepsHistoryLength', (doctor.history || []).length);

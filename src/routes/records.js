@@ -13,6 +13,7 @@ import {
   calendarVisits,
   countSteps,
   isAssignmentLine,
+  optionalMoment,
   sameMoment,
   statusHistory,
   visibleTo,
@@ -86,15 +87,25 @@ function peopleFilter({ assignee, createdBy }) {
 }
 
 // The implementation checklist. The whole list is sent each time; existing steps keep their id.
+// `doneAt` sets the day a done step was done (today or earlier, in Dhaka); left out, a newly ticked
+// step gets today and a step that was already done keeps its day.
 const stepsInput = z
   .array(
     z.object({
       id: objectId.optional(),
       title: requiredText('Please describe the step.', 120),
       done: z.boolean({ error: 'Done must be true or false.' }).default(false),
+      doneAt: optionalMoment('Please pick a valid day.'),
     }),
   )
-  .max(20, 'Use 20 steps or fewer.');
+  .max(20, 'Use 20 steps or fewer.')
+  .superRefine((steps, ctx) =>
+    steps.forEach((step, index) => {
+      if (step.done && step.doneAt && dhakaDay(step.doneAt) > dhakaDay()) {
+        ctx.addIssue({ code: 'custom', path: [index, 'doneAt'], message: "The day a step was done can't be in the future." });
+      }
+    }),
+  );
 
 const statusBody = z.object({
   status: z.enum(STATUSES, { error: STATUS_MESSAGE }),
@@ -229,15 +240,20 @@ export function recordRoutes(Model, input) {
     const moved =
       status !== record.status || visitDate.getTime() !== record.visitDate.getTime() || timeOf(visitEndDate) !== timeOf(record.visitEndDate);
     const previousStatus = record.status;
+    const progressBefore = stepProgress(record.status, record.implementationSteps);
 
     record.status = status;
     record.visitDate = visitDate;
     record.visitEndDate = visitEndDate;
     if (implementationSteps) record.implementationSteps = updatedSteps(record.implementationSteps, implementationSteps);
 
-    // While in Implementation, the history also remembers how many steps were done.
-    const steps = status === 'implementation' ? countSteps(record.implementationSteps) : null;
-    record.history.push({ status, visitDate, visitEndDate, note, steps, by: req.user._id });
+    // The history gets a line for what it shows: a new status, visit or end time, a note, or a new
+    // count of steps done (while in Implementation, the line remembers it). Changing only the steps'
+    // titles or the days they were done adds no line.
+    const steps = stepProgress(status, record.implementationSteps);
+    if (moved || note || !sameProgress(progressBefore, steps)) {
+      record.history.push({ status, visitDate, visitEndDate, note, steps, by: req.user._id });
+    }
     await record.save();
     await record.populate(PEOPLE);
 
@@ -430,15 +446,22 @@ function assertVisitNotInPast(user, visitDate, current = null) {
   if (day < dhakaDay()) throw ApiError.validation({ visitDate: "The visit date can't be in the past. Pick today or a later day." });
 }
 
-// The new checklist replaces the old one. A step that was already done keeps the day it was
-// ticked off, a newly ticked step gets today, and an unticked step loses its date.
+// The new checklist replaces the old one. A done step gets the day sent with it (`doneAt`); without
+// one, a step that was already done keeps its day and a newly ticked step gets today. An unticked
+// step loses its date.
 function updatedSteps(oldSteps, newSteps) {
   const now = new Date();
-  return newSteps.map(({ id, title, done }) => {
+  return newSteps.map(({ id, title, done, doneAt }) => {
     const old = id ? oldSteps.id(id) : null;
     const step = { title, done, doneAt: null };
     if (old) step._id = old._id; // the same step as before
-    if (done) step.doneAt = old?.done ? old.doneAt : now;
+    if (done) step.doneAt = doneAt ?? (old?.done ? old.doneAt : now);
     return step;
   });
 }
+
+// How far the implementation steps are ({ done, total }), counted only while in Implementation
+// (what a history line remembers); otherwise null.
+const stepProgress = (status, steps) => (status === 'implementation' ? countSteps(steps) : null);
+
+const sameProgress = (a, b) => a?.done === b?.done && a?.total === b?.total;

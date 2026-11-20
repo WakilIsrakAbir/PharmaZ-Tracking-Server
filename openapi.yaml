@@ -679,7 +679,9 @@ paths:
       description: |
         The "Save update" button in the details panel. Sets `status` (and `visitDate`, if given)
         and adds an entry to the end of `history` with the note and the person who made the change.
-        Without `visitDate`, the current one stays.
+        Without `visitDate`, the current one stays. The entry is added only when there is something
+        for it to show: a new status, visit date or end time, a note, or a new count of implementation
+        steps done. Changing only the steps' titles or the days they were done adds no entry.
 
         **Emails.** When the status, the visit date or the end time changes, everyone assigned to
         the form is emailed the update (the new status and the one before, the visit, the note, then
@@ -692,10 +694,11 @@ paths:
         `visitDate` moves the visit.
 
         **Implementation steps.** Send `implementationSteps` to replace the whole checklist; leave it
-        out to keep the current one. Send the `id` of each step that already exists. A step that
-        becomes `done` gets today's date in `doneAt`; a step that was already done keeps its date.
-        When the new status is `implementation` and there are steps, the history entry records how
-        many were done (`steps`).
+        out to keep the current one. Send the `id` of each step that already exists. A done step
+        gets the day sent in its `doneAt` (today or earlier in Dhaka; a later day gets `400`, naming
+        `implementationSteps.N.doneAt`). Without `doneAt`, a step that becomes `done` gets today and
+        a step that was already done keeps its day. When the new status is `implementation` and there
+        are steps, the history entry records how many were done (`steps`).
       requestBody:
         $ref: '#/components/requestBodies/StatusChange'
       responses:
@@ -2437,7 +2440,7 @@ components:
         done:
           type: boolean
         doneAt:
-          description: When the step was ticked off, or `null` while it is still to do.
+          description: The day the step was done (when it was ticked off, unless that day was changed later), or `null` while it is still to do.
           anyOf:
             - $ref: '#/components/schemas/DateTime'
             - type: 'null'
@@ -2455,6 +2458,11 @@ components:
         done:
           type: boolean
           default: false
+        doneAt:
+          description: For a done step, the day it was done (today or earlier in Dhaka). Leave it out (or `null`) to keep the step's day, or to use today for a newly ticked step. Ignored for a step that isn't done.
+          anyOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
     RecordBase:
       type: object
       description: The fields every record has.
